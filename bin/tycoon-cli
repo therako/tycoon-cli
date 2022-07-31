@@ -1,0 +1,55 @@
+#!/usr/bin/env python
+# -*- encoding: utf-8 -*-
+import argparse
+from tycoon.utils import log
+from tycoon.aircraft import Aircraft
+from tycoon.utils.command import Command
+import traceback
+import sys
+from selenium import webdriver
+import time
+from selenium.webdriver.chrome.options import Options
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "-d", "--debug", dest="debug_mode", action="store_true", help="Debug mode on."
+)
+parser.add_argument(
+    "--no_headless",
+    "-nh",
+    action="store_true",
+    help="Disable headless and show browser",
+)
+sub_parsers = parser.add_subparsers(help="Sub-commands", dest="command", required=True)
+
+chrome_options = Options()
+chrome_options.add_argument("--window-size=1920x1080")
+
+
+COMMANDS = {
+    "aircraft": Aircraft,
+}
+
+
+if __name__ == "__main__":
+    for k, v in COMMANDS.items():
+        getattr(v, "options")(sub_parsers)
+    options, _ = parser.parse_known_args()
+    log.setup(options.debug_mode)
+    try:
+        if not options.no_headless:
+            chrome_options.add_argument("--headless")
+
+        driver = webdriver.Chrome(options=chrome_options)
+
+        for k, v in COMMANDS.items():
+            if options.command == k:
+                getattr(v(driver, options), "run")()
+
+    except Exception:
+        traceback.print_exception(*sys.exc_info())
+    finally:
+        time.sleep(5)
+        driver.quit()
+        print("Done")
