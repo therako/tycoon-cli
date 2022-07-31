@@ -3,6 +3,7 @@
 import argparse
 from tycoon.utils import log
 from tycoon.aircraft import Aircraft
+from tycoon.seat import Seat
 from tycoon.utils.command import Command
 import traceback
 import sys
@@ -29,6 +30,7 @@ chrome_options.add_argument("--window-size=1920x1080")
 
 COMMANDS = {
     "aircraft": Aircraft,
+    "seat": Seat,
 }
 
 
