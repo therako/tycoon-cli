@@ -1,10 +1,10 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from typing import List
 import re
 
 
-non_decimal = re.compile(r"[^\d.]+")
+non_decimal = re.compile(r"[^-\d.]+")
 
 
 @dataclass_json
@@ -17,6 +17,14 @@ class RouteStat:
 
 @dataclass_json
 @dataclass
+class ScheduledAircraftConfig:
+    model: str
+    seat_config: str
+    result: float
+
+
+@dataclass_json
+@dataclass
 class RouteStats:
     economy: RouteStat = None
     business: RouteStat = None
@@ -24,6 +32,7 @@ class RouteStats:
     cargo: RouteStat = None
     category: int = 0
     distance: int = 0
+    scheduled_flights: List[ScheduledAircraftConfig] = field(default_factory=list)
 
 
 @dataclass
