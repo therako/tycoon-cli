@@ -1,7 +1,12 @@
 import os
-from typing import Tuple
+from typing import List, Tuple
 from selenium.webdriver.remote.webdriver import WebDriver
-from tycoon.utils.data import RouteStats, non_decimal, RouteStat
+from tycoon.utils.data import (
+    RouteStats,
+    ScheduledAircraftConfig,
+    non_decimal,
+    RouteStat,
+)
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.by import By
 
@@ -63,10 +68,39 @@ def _extract_route_stat(priceList) -> Tuple[str, RouteStat]:
     )
 
 
-def _get_route_stats(driver, route_text: str) -> RouteStats:
+def _get_flight_stats(driver) -> List[ScheduledAircraftConfig]:
+    flights_list = driver.find_elements(
+        By.XPATH, '//div[@class="aircraftListView"]/div'
+    )
+    flight_stats = []
+    for flight in flights_list:
+        flight = flights_list[0]
+        flight_stats.append(
+            ScheduledAircraftConfig(
+                model=flight.find_element(By.XPATH, "div[1]/span")
+                .text.split("/")[0]
+                .strip(),
+                seat_config=flight.find_element(
+                    By.XPATH, "div[2]/div/span[4]/b"
+                ).text.strip(),
+                result=non_decimal.sub(
+                    "",
+                    flight.find_element(By.XPATH, "div[2]/div/span[6]/b").text.strip(),
+                ),
+            )
+        )
+
+    return flight_stats
+
+
+def route_stats(driver, hub: str, route: str) -> RouteStats:
+    route_text = f"{hub} - {route}"
     _select_route(driver, route_text)
+    flight_stats = _get_flight_stats(driver)
     route_stats = RouteStats(
-        category=_get_max_category(driver), distance=_get_distance(driver)
+        category=_get_max_category(driver),
+        distance=_get_distance(driver),
+        scheduled_flights=flight_stats,
     )
 
     prices = driver.find_element(By.LINK_TEXT, "Route prices")
@@ -81,20 +115,38 @@ def _get_route_stats(driver, route_text: str) -> RouteStats:
     return route_stats
 
 
-def _save_output(hub: str, route: str, route_stats: RouteStats):
-    if not os.path.exists(f"tmp/{hub}"):
-        os.makedirs(f"tmp/{hub}")
-    with open(f"tmp/{hub}/{route}.json", "w+") as f:
-        f.write(route_stats.to_json())
+def _extract_destination(hub: str, route_element) -> str:
+    if "lineListBox" in route_element.get_attribute("class"):
+        title = route_element.find_element(By.CLASS_NAME, "title").text
+        match = re.search("([A-Z]{3}) \/ ([A-Z]{3})", title)
+        if match and match.group(1) == hub:
+            return match.group(2)
 
 
-def _is_extracted(hub: str, route: str):
-    return os.path.exists(f"tmp/{hub}/{route}.json")
+def _find_hub_id(driver, hub: str) -> int:
+    driver.get("http://tycoon.airlines-manager.com/network/")
+    driver.find_elements(By.XPATH, '//*[@id="lineList"]/div')
+    hubs = driver.find_elements(
+        By.XPATH, '//*[@id="displayRegular"]/div[@class="hubListBox"]/div'
+    )
+    for hub_element in hubs:
+        match = re.search("Owned hub ([A-Z]{3}) -", hub_element.text)
+        if match and match.group(1) == hub:
+            hub_id = int(
+                hub_element.find_element(By.LINK_TEXT, "Hub details")
+                .get_attribute("href")
+                .split("/")[-1],
+            )
+            return hub_id
 
 
-def extract_route_price_stats(driver, hub: str, route: str, force=False):
-    if route and (not _is_extracted(hub, route) or force):
-        route_name = f"{hub} - {route}"
-        route_stats = _get_route_stats(driver, route_name)
-        _save_output(hub, route, route_stats)
-        print(f"{route_name}: \n\t {route_stats}")
+def get_all_routes(driver, hub: str) -> List[str]:
+    hub_id = _find_hub_id(driver, hub)
+    driver.get(f"http://tycoon.airlines-manager.com/network/showhub/{hub_id}/linelist")
+    route_elements = driver.find_elements(By.XPATH, '//*[@id="lineList"]/div')
+
+    destinations = []
+    for route_element in route_elements:
+        destinations.append(_extract_destination(hub, route_element))
+
+    return destinations
