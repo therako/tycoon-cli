@@ -1,4 +1,3 @@
-import argparse
 from selenium.webdriver.remote.webdriver import WebDriver
 from typing import Any
 
@@ -12,14 +11,14 @@ class Command:
         parser.add_argument(
             "--aircraft_make",
             "-m",
-            help="Aircraft maker name as per Airline Tycoon eg., Ilyushin (Default: Boeing)",
-            default="Boeing",
+            help="Aircraft maker name as per Airline Tycoon eg., Ilyushin (Default: Airbus)",
+            default="Airbus",
         )
         parser.add_argument(
             "--aircraft_model",
             "-a",
-            help="Aircraft model name for the Aircraft maker eg., 96-300 (Default: 747-400)",
-            default="747-400",
+            help="Aircraft model name for the Aircraft maker eg., 96-300 (Default: A380-800)",
+            default="A380-800",
         )
         parser.add_argument(
             "-d",

@@ -1,14 +1,20 @@
+import logging
 import os
+import re
+import time
 from typing import List, Tuple
+
+import pandas as pd
+from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.support.ui import Select
 from tycoon.utils.data import (
+    RouteStat,
     RouteStats,
     ScheduledAircraftConfig,
+    WaveStat,
     non_decimal,
-    RouteStat,
 )
-from selenium.webdriver.support.ui import Select
-from selenium.webdriver.common.by import By
 
 
 def login(driver: WebDriver):
@@ -150,3 +156,86 @@ def get_all_routes(driver, hub: str) -> List[str]:
         destinations.append(_extract_destination(hub, route_element))
 
     return destinations
+
+
+def _clear_all_and_enter(inputs):
+    for set in inputs:
+        set[0].clear()
+        set[0].send_keys("0")
+    time.sleep(2)
+    for set in inputs:
+        set[0].clear()
+        set[0].send_keys(str(set[1]))
+        time.sleep(2)
+
+
+def reconfigure_flight_seats(
+    driver: WebDriver,
+    hub: str,
+    destination: str,
+    seat_config: pd.Series,
+):
+    _select_route(driver, f"{hub} - {destination}")
+    aircrafts = driver.find_elements(By.XPATH, '//div[@class="aircraftListView"]/div')
+    aircraft_links = []
+    for aircraft in aircrafts:
+        aircraft_links.append(
+            aircraft.find_element(By.LINK_TEXT, "Aircraft details").get_attribute(
+                "href"
+            )
+        )
+
+    for i, aircraft_link in enumerate(aircraft_links):
+        logging.info(f"Reconfiguring seat on Aircraft {i+1}")
+        driver.get(aircraft_link + "/reconfigure")
+        _clear_all_and_enter(
+            [
+                (driver.find_element("id", "ecoManualInput"), seat_config["economy"]),
+                (driver.find_element("id", "busManualInput"), seat_config["business"]),
+                (driver.find_element("id", "firstManualInput"), seat_config["first"]),
+                (driver.find_element("id", "cargoManualInput"), seat_config["cargo"]),
+                (
+                    driver.find_element("id", "aircraft_name"),
+                    f"{hub}-{destination}-{i}",
+                ),
+            ]
+        )
+        driver.find_element(
+            By.XPATH, '//input[@value="Confirm the reconfiguration"]'
+        ).submit()
+
+
+def reconfigure_flight_seats(
+    driver: WebDriver,
+    hub: str,
+    destination: str,
+    seat_config: WaveStat,
+):
+    _select_route(driver, f"{hub} - {destination}")
+    aircrafts = driver.find_elements(By.XPATH, '//div[@class="aircraftListView"]/div')
+    aircraft_links = []
+    for aircraft in aircrafts:
+        aircraft_links.append(
+            aircraft.find_element(By.LINK_TEXT, "Aircraft details").get_attribute(
+                "href"
+            )
+        )
+
+    for i, aircraft_link in enumerate(aircraft_links):
+        logging.info(f"Reconfiguring seat on Aircraft {i+1}")
+        driver.get(aircraft_link + "/reconfigure")
+        _clear_all_and_enter(
+            [
+                (driver.find_element("id", "ecoManualInput"), seat_config.economy),
+                (driver.find_element("id", "busManualInput"), seat_config.business),
+                (driver.find_element("id", "firstManualInput"), seat_config.first),
+                (driver.find_element("id", "cargoManualInput"), seat_config.cargo),
+                (
+                    driver.find_element("id", "aircraft_name"),
+                    f"{hub}-{destination}-{i}",
+                ),
+            ]
+        )
+        driver.find_element(
+            By.XPATH, '//input[@value="Confirm the reconfiguration"]'
+        ).submit()
