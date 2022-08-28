@@ -4,7 +4,7 @@ import logging
 import time
 import os
 
-from tycoon.utils.airline_manager import login, extract_route_price_stats
+from tycoon.utils.airline_manager import login
 from tycoon.utils.browser import js_click
 from tycoon.utils.command import Command
 from tycoon.utils.browser import js_click
@@ -65,14 +65,19 @@ class Seat(Command):
         print(df)
         return df
 
-    @retry((NoSuchElementException, ElementClickInterceptedException), delay=5, tries=6)
+    @retry(
+        (NoSuchElementException, ElementClickInterceptedException),
+        delay=5,
+        tries=6,
+        logger=None,
+    )
     def calculate_seat_config(self):
         if not self.options.allow_negative:
             js_click(self.driver, self.driver.find_element("id", "nonegativeconfig"))
 
         js_click(self.driver, self.driver.find_element("id", "calculate_button"))
 
-    @retry(ElementClickInterceptedException, delay=5, tries=6)
+    @retry(ElementClickInterceptedException, delay=5, tries=6, logger=None)
     def change_to_airport_codes(self):
         try:
             for el in self.driver.find_elements(By.LINK_TEXT, "Quick Entry"):
@@ -103,7 +108,7 @@ class Seat(Command):
 
         self.add_to_circuit()
 
-    @retry(ElementClickInterceptedException, delay=5, tries=6)
+    @retry(ElementClickInterceptedException, delay=5, tries=6, logger=None)
     def add_to_circuit(self):
         js_click(self.driver, self.driver.find_element("id", "add2circuit_button"))
 
@@ -118,7 +123,7 @@ class Seat(Command):
 
         return wave_stats
 
-    @retry(NoSuchElementException, delay=5, tries=6)
+    @retry(NoSuchElementException, delay=5, tries=6, logger=None)
     def extract_wave_config(self, wave: int):
         wave_stat_el = self.driver.find_element(
             "id", f"nwy_seatconfigurator_wave_{wave}_stats"
@@ -146,12 +151,6 @@ class Seat(Command):
                 By.XPATH, "table[2]/tbody/tr[3]/td[9]"
             ).text,
         )
-
-    def decodeCost(self, costStr: str) -> float:
-        if "M" in costStr:
-            return float(non_decimal.sub("", costStr)) * 1_000_000
-
-        return float(non_decimal.sub("", costStr))
 
     def select_wave(self, wave: int):
         try:
@@ -203,6 +202,6 @@ class Seat(Command):
 
     def run(self):
         login(self.driver)
-        for destination in self.options.destinations:
-            extract_route_price_stats(self.driver, self.options.hub, destination)
-        self.find_seat_config()
+        # for destination in self.options.destinations:
+        # extract_route_price_stats(self.driver, self.options.hub, destination)
+        # self.find_seat_config()

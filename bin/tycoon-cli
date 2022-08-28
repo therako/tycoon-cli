@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 import argparse
-from tycoon.analyse_hub import AnalyseHub
-from tycoon.utils import log
-from tycoon.aircraft import Aircraft
-from tycoon.seat import Seat
-import traceback
 import sys
-from selenium import webdriver
 import time
-from selenium.webdriver.chrome.options import Options
+import traceback
 
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from tycoon.aircraft import Aircraft
+from tycoon.analyse_hub import AnalyseHub
+from tycoon.seat import Seat
+from tycoon.utils import log
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

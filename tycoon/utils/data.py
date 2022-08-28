@@ -1,8 +1,8 @@
-from dataclasses import dataclass, field
-from dataclasses_json import dataclass_json
-from typing import List
 import re
+from dataclasses import dataclass, field
+from typing import Dict, List
 
+from dataclasses_json import dataclass_json
 
 non_decimal = re.compile(r"[^-\d.]+")
 
@@ -25,17 +25,6 @@ class ScheduledAircraftConfig:
 
 @dataclass_json
 @dataclass
-class RouteStats:
-    economy: RouteStat = None
-    business: RouteStat = None
-    first: RouteStat = None
-    cargo: RouteStat = None
-    category: int = 0
-    distance: int = 0
-    scheduled_flights: List[ScheduledAircraftConfig] = field(default_factory=list)
-
-
-@dataclass
 class WaveStat:
     no: int
     economy: int
@@ -50,5 +39,25 @@ class WaveStat:
     max_configured: str
 
 
+@dataclass_json
+@dataclass
+class RouteStats:
+    economy: RouteStat = None
+    business: RouteStat = None
+    first: RouteStat = None
+    cargo: RouteStat = None
+    category: int = 0
+    distance: int = 0
+    scheduled_flights: List[ScheduledAircraftConfig] = field(default_factory=list)
+    wave_stats: Dict[int, WaveStat] = field(default_factory=dict)
+
+
 def split_destination(input: str, delimiter=",") -> List[str]:
     return input.split(delimiter)
+
+
+def decode_cost(costStr: str) -> float:
+    if "M" in costStr:
+        return float(non_decimal.sub("", costStr)) * 1_000_000
+
+    return float(non_decimal.sub("", costStr))

@@ -21,4 +21,4 @@ def setup(debug_mode=False):
         rootLogger.setLevel(logging.DEBUG)
         logging.debug("Verbose logging enabled")
         selenium = logging.getLogger("selenium.webdriver.remote.remote_connection")
-        selenium.setLevel(logging.WARNING)
+        selenium.setLevel(logging.ERROR)

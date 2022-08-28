@@ -1,16 +1,13 @@
-import pandas as pd
-import numpy as np
 import os
 
-
-def get_hub_df(hub: str) -> pd.DataFrame:
-    if os.path.exists(f"{hub}.csv"):
-        return pd.read_csv(f"{hub}.csv")
-
-    return new_df()
+import numpy as np
+import pandas as pd
 
 
-def new_df() -> pd.DataFrame:
+STORE_DIR = "./"
+
+
+def _new_df() -> pd.DataFrame:
     dtypes = np.dtype(
         [
             ("hub", str),
@@ -39,3 +36,14 @@ def new_df() -> pd.DataFrame:
         ]
     )
     return pd.DataFrame(np.empty(0, dtype=dtypes))
+
+
+def save_hub(hub: str, df: pd.DataFrame = _new_df(), dir=STORE_DIR):
+    return df.to_csv(os.path.join(dir, f"{hub}.csv"), header=True, index=False)
+
+
+def get_hub(hub: str, dir=STORE_DIR) -> pd.DataFrame:
+    if os.path.exists(os.path.join(dir, f"{hub}.csv")):
+        return pd.read_csv(f"{hub}.csv")
+
+    return _new_df()
