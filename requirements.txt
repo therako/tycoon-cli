@@ -100,6 +100,7 @@ stack-data==0.4.0
 terminado==0.15.0
 tidal-dl==2020.12.17.0
 tinycss2==1.1.1
+tokenize-rt==4.2.1
 toml==0.10.2
 tomli==2.0.1
 tornado==6.2
