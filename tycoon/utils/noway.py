@@ -10,7 +10,7 @@ from selenium.common.exceptions import (
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from tycoon.utils.browser import js_click
-from tycoon.utils.data import RouteStats, WaveStat, decode_cost, non_decimal
+from tycoon.utils.data import CircuitRow, RouteStats, WaveStat, decode_cost, non_decimal
 
 
 @retry(ElementClickInterceptedException, delay=5, tries=6, logger=None)
@@ -22,7 +22,7 @@ def _change_to_airport_codes(driver):
         pass
 
 
-def _clear_previous_configs(driver):
+def _clear_previous_seat_configs(driver):
     rows = driver.find_elements(
         By.XPATH, '//*[@id="nwy_seatconfigurator_circuitinfo"]/table/tbody/tr'
     )
@@ -131,6 +131,18 @@ def _select_option(driver, id: str, value: Any):
             option.click()
 
 
+def _select_aircraft(driver, aircraft_make: str, aircraft_model: str):
+    cf_aircraftmake = Select(driver.find_element("id", "cf_aircraftmake"))
+    for option in cf_aircraftmake.options:
+        if aircraft_make.lower() in option.text.lower():
+            option.click()
+
+    cf_aircraftmodel = Select(driver.find_element("id", "cf_aircraftmodel"))
+    for option in cf_aircraftmodel.options:
+        if f"{aircraft_model.lower()} (" in option.text.lower():
+            option.click()
+
+
 def find_seat_config(
     driver,
     source: str,
@@ -199,3 +211,59 @@ def find_routes_from(
     js_click(driver, driver.find_element("id", "df_search"))
     time.sleep(5)
     return _scrape_route_details(driver)
+
+
+def _fillin_circuit_info(driver, source: str, excluded_dest: str, hours: int):
+    cf_hub_src = driver.find_element("id", "cf_hub_src")
+    cf_hub_src.send_keys(source)
+    elem = driver.find_element("id", "cf_hub_list_exclude")
+    elem.send_keys(excluded_dest)
+    circut = Select(driver.find_element("id", "cf_config_circuit_length"))
+    circut.select_by_visible_text(f"{hours} hours")
+
+
+def _get_circuit_info(driver) -> List[CircuitRow]:
+    circuit_rows = []
+    for idx, element in enumerate(
+        driver.find_elements(
+            By.XPATH,
+            '//*[@id="nwy_circuitfinder_circuit_content"]/table/tbody/tr/td/table[1]/tbody/tr',
+        )
+    ):
+        if idx < 2:
+            # Skip headers
+            continue
+
+        try:
+            circuit_rows.append(
+                CircuitRow(
+                    no=int(element.find_element(By.XPATH, "td[1]").text),
+                    destination=element.find_element(By.XPATH, "td[2]").text,
+                    country=element.find_element(By.XPATH, "td[3]").text,
+                    cat=int(element.find_element(By.XPATH, "td[4]").text),
+                    stars=int(element.find_element(By.XPATH, "td[5]").text),
+                    distance=element.find_element(By.XPATH, "td[6]").text,
+                    time=element.find_element(By.XPATH, "td[7]").text,
+                )
+            )
+        except Exception:
+            break
+
+    return circuit_rows
+
+
+def find_circuit(
+    driver,
+    source: str,
+    exclude_routes: str,
+    hours: int,
+    aircraft_make: str,
+    aircraft_model: str,
+) -> List[CircuitRow]:
+    driver.get("https://destinations.noway.info/en/circuitfinder/index.html")
+    _select_aircraft(driver, aircraft_make, aircraft_model)
+    _change_to_airport_codes(driver)
+    _fillin_circuit_info(driver, source, exclude_routes, hours)
+    js_click(driver, driver.find_element("id", "cf_search"))
+    time.sleep(10)
+    return _get_circuit_info(driver)
