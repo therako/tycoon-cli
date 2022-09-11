@@ -61,3 +61,15 @@ def decode_cost(costStr: str) -> float:
         return float(non_decimal.sub("", costStr)) * 1_000_000
 
     return float(non_decimal.sub("", costStr))
+
+
+@dataclass_json
+@dataclass
+class CircuitRow:
+    no: int
+    destination: str
+    country: str
+    cat: int
+    stars: int
+    distance: str
+    time: str
