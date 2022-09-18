@@ -155,6 +155,7 @@ def get_all_routes(driver, hub: str) -> List[str]:
     for route_element in route_elements:
         destinations.append(_extract_destination(hub, route_element))
 
+    logging.info(f"Found {len(destinations)} destinations at hub {hub}")
     return destinations
 
 

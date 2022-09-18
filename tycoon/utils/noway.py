@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Dict
+from typing import Dict, Any, List
 
 from retry import retry
 from selenium.common.exceptions import (
@@ -124,6 +124,13 @@ def _scan_seat_configs(driver, maxWave=50) -> Dict[int, WaveStat]:
     return wave_stats
 
 
+def _select_option(driver, id: str, value: Any):
+    ele = Select(driver.find_element("id", id))
+    for option in ele.options:
+        if str(value).lower() in option.text.lower():
+            option.click()
+
+
 def find_seat_config(
     driver,
     source: str,
@@ -138,15 +145,8 @@ def find_seat_config(
     )
     driver.get("https://destinations.noway.info/en/seatconfigurator/index.html")
     _clear_previous_configs(driver)
-    cf_aircraftmake = Select(driver.find_element("id", "cf_aircraftmake"))
-    for option in cf_aircraftmake.options:
-        if aircraft_make.lower() in option.text.lower():
-            option.click()
-
-    cf_aircraftmodel = Select(driver.find_element("id", "cf_aircraftmodel"))
-    for option in cf_aircraftmodel.options:
-        if f"{aircraft_model.lower()} (" in option.text.lower():
-            option.click()
+    _select_option(driver, "cf_aircraftmake", aircraft_make)
+    _select_option(driver, "cf_aircraftmodel", aircraft_model)
 
     _change_to_airport_codes(driver)
     _fillin_route_stats(driver, source, destination, route_stats)
@@ -155,3 +155,47 @@ def find_seat_config(
     _calculate_seat_config(driver, no_negative)
     route_stats.wave_stats = _scan_seat_configs(driver)
     return route_stats
+
+
+def _scrape_route_details(driver) -> List[List[str]]:
+    routes_table = driver.find_element("id", "routefinderresults")
+    routes = [["id", "country", "IATA", "cat", "stars", "duration", "distance"]]
+    for idx, row in enumerate(routes_table.find_elements(By.XPATH, "tbody/tr")):
+        routes.append(
+            [
+                idx,
+                row.find_element(By.XPATH, "td[1]").text,
+                row.find_element(By.XPATH, "td[2]").text,
+                row.find_element(By.XPATH, "td[3]").text,
+                row.find_element(By.XPATH, "td[4]").text,
+                row.find_element(By.XPATH, "td[5]").text,
+                row.find_element(By.XPATH, "td[6]").text,
+            ]
+        )
+    logging.info(f"Found {len(routes)-1} routes with given config")
+    logging.debug(f"Found routes:\n{routes}")
+    return routes
+
+
+def find_routes_from(
+    driver,
+    hub: str,
+    aircraft_make: str,
+    aircraft_model: str,
+    min_duration: int,
+    max_duration: int,
+) -> List[List[str]]:
+    logging.info(
+        f"Finding routes from {hub} with {aircraft_make} {aircraft_model} and duration between {min_duration} <> {max_duration} hours"
+    )
+    driver.get("https://destinations.noway.info/en/routefinder/index.html")
+    _change_to_airport_codes(driver)
+    cf_hub_src = driver.find_element("id", "cf_hub_src")
+    cf_hub_src.send_keys(hub)
+    _select_option(driver, "aircraftmake", aircraft_make)
+    _select_option(driver, "aircraftmodel", aircraft_model)
+    _select_option(driver, "route_duration_from_hh", min_duration)
+    _select_option(driver, "route_duration_to_hh", max_duration)
+    js_click(driver, driver.find_element("id", "df_search"))
+    time.sleep(5)
+    return _scrape_route_details(driver)
