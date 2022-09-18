@@ -33,6 +33,15 @@ class Command:
             action="store_true",
             help="Disable headless and show browser",
         )
+        parser.add_argument(
+            "--tmp_folder",
+            "-tmp",
+            type=str,
+            help="""
+                Where all the data will stored (Default: ./tmp)
+            """,
+            default="./tmp",
+        )
 
     def __init__(self, driver: WebDriver, options: Any) -> None:
         self.driver = driver

@@ -9,6 +9,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from tycoon.aircraft import Aircraft
 from tycoon.analyse_hub import AnalyseHub
+from tycoon.long_hauls import LongHauls
 from tycoon.seat import Seat
 from tycoon.utils import log
 
@@ -33,6 +34,7 @@ COMMANDS = {
     "aircraft": Aircraft,
     "seat": Seat,
     "analyse_hub": AnalyseHub,
+    "long_hauls": LongHauls,
 }
 
 
