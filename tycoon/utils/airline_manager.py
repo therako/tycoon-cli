@@ -129,7 +129,7 @@ def _extract_destination(hub: str, route_element) -> str:
             return match.group(2)
 
 
-def _find_hub_id(driver, hub: str) -> int:
+def find_hub_id(driver, hub: str) -> int:
     driver.get("http://tycoon.airlines-manager.com/network/")
     driver.find_elements(By.XPATH, '//*[@id="lineList"]/div')
     hubs = driver.find_elements(
@@ -147,7 +147,7 @@ def _find_hub_id(driver, hub: str) -> int:
 
 
 def get_all_routes(driver, hub: str) -> List[str]:
-    hub_id = _find_hub_id(driver, hub)
+    hub_id = find_hub_id(driver, hub)
     driver.get(f"http://tycoon.airlines-manager.com/network/showhub/{hub_id}/linelist")
     route_elements = driver.find_elements(By.XPATH, '//*[@id="lineList"]/div')
 
@@ -240,3 +240,14 @@ def reconfigure_flight_seats(
         driver.find_element(
             By.XPATH, '//input[@value="Confirm the reconfiguration"]'
         ).submit()
+
+
+def buy_route(driver: WebDriver, hub: str, destination: str, hub_id: int):
+    if not hub_id:
+        raise Exception("Unknown hub")
+
+    driver.get(
+        f"http://tycoon.airlines-manager.com/network/newlinefinalize/{hub_id}/{destination.lower()}"
+    )
+    driver.find_element(By.XPATH, '//*[@id="linePurchaseForm"]/input').submit()
+    logging.info(f"Bought route {hub} -- {destination}")

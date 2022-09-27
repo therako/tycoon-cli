@@ -2,6 +2,8 @@ import argparse
 import logging
 import os
 from tycoon.utils.airline_manager import (
+    buy_route,
+    find_hub_id,
     get_all_routes,
     login,
     reconfigure_flight_seats,
@@ -23,6 +25,7 @@ class Status(Enum):
     NEGATIVE_DEMAND = 6
     RECONFIGURED = 7
     PERFECT = 8
+    UNKNOWN_ERROR = 20
 
 
 class LongHauls(Command):
@@ -95,6 +98,25 @@ class LongHauls(Command):
                 self.routes_df["IATA"].isin(bought_routes), "status"
             ] = Status.PRE_EXISTING.value
             self._save_data()
+
+    def _buy_new_routes(self):
+        df = self.routes_df[self.routes_df["status"] != Status.PRE_EXISTING.value]
+        hub_id = find_hub_id(self.driver, self.options.hub)
+        for row in df.itertuples():
+            try:
+                buy_route(
+                    self.driver,
+                    self.options.hub,
+                    row.IATA,
+                    hub_id,
+                )
+            except Exception as ex:
+                self.routes_df.loc[row.Index, "error"] = ex
+                self.routes_df.loc[row.Index, "status"] = Status.UNKNOWN_ERROR.value
+        self._save_data()
+        self._mark_pre_existing()
+        df = self.routes_df[self.routes_df["status"] != Status.PRE_EXISTING.value]
+        logging.error(f"Missing routes to: {df.IATA.values}")
 
     def _fetch_demands(self):
         df = self.routes_df[self.routes_df["status"] == Status.PRE_EXISTING.value]
@@ -175,6 +197,7 @@ class LongHauls(Command):
 
         login(self.driver)
         self._mark_pre_existing()
+        self._buy_new_routes()
         self._fetch_demands()
         self._find_seat_configs()
         self._mark_negative_demands()
