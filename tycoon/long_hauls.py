@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 from tycoon.utils.airline_manager import (
+    assign_flights,
     buy_route,
     find_hub_id,
     get_all_routes,
@@ -100,7 +101,11 @@ class LongHauls(Command):
             self._save_data()
 
     def _buy_new_routes(self):
-        df = self.routes_df[self.routes_df["status"] != Status.PRE_EXISTING.value]
+        df = self.routes_df[self.routes_df["status"] < Status.PRE_EXISTING.value]
+        if df.empty:
+            logging.info("No new routes to buy")
+            return
+
         hub_id = find_hub_id(self.driver, self.options.hub)
         for row in df.itertuples():
             try:
@@ -115,7 +120,7 @@ class LongHauls(Command):
                 self.routes_df.loc[row.Index, "status"] = Status.UNKNOWN_ERROR.value
         self._save_data()
         self._mark_pre_existing()
-        df = self.routes_df[self.routes_df["status"] != Status.PRE_EXISTING.value]
+        df = self.routes_df[self.routes_df["status"] < Status.PRE_EXISTING.value]
         logging.error(f"Missing routes to: {df.IATA.values}")
 
     def _fetch_demands(self):
@@ -161,29 +166,49 @@ class LongHauls(Command):
                 self.routes_df.loc[row.Index, "status"] = Status.NEGATIVE_DEMAND.value
                 self._save_data()
 
+    def _reconfigure_row(self, row):
+        _rs = RouteStats.from_json(self.routes_df.loc[row.Index, "route_stats"])
+        logging.info(f"Reconfigure {self.options.hub} - {row.IATA} flights...")
+        reconfigure_flight_seats(
+            self.driver,
+            self.options.hub,
+            row.IATA,
+            _rs.wave_stats[list(_rs.wave_stats.keys())[-self.options.nth_best_config]],
+        )
+        _new_rs = route_stats(self.driver, self.options.hub, row.IATA)
+        _rs.economy = _new_rs.economy
+        _rs.business = _new_rs.business
+        _rs.first = _new_rs.first
+        _rs.cargo = _new_rs.cargo
+        _rs.scheduled_flights = _new_rs.scheduled_flights
+        self.routes_df.loc[row.Index, "route_stats"] = _rs.to_json()
+        self.routes_df.loc[row.Index, "status"] = Status.RECONFIGURED.value
+        logging.info(f"Reconfigured {self.options.hub} - {row.IATA} flights")
+        self._save_data()
+
     def _reconfigure_wrong_flights(self):
         df = self.routes_df[self.routes_df["status"] == Status.NEGATIVE_DEMAND.value]
         for row in df.itertuples():
+            self._reconfigure_row(row)
+
+    def _schedule_flights(self):
+        df = self.routes_df[self.routes_df["status"] == Status.SEAT_CONFIG.value]
+        hub_id = find_hub_id(self.driver, self.options.hub)
+        for row in df.itertuples():
             _rs = RouteStats.from_json(self.routes_df.loc[row.Index, "route_stats"])
-            logging.info(f"Reconfigure {self.options.hub} - {row.IATA} flights...")
-            reconfigure_flight_seats(
+            assign_flights(
                 self.driver,
+                hub_id,
                 self.options.hub,
                 row.IATA,
-                _rs.wave_stats[
-                    list(_rs.wave_stats.keys())[-self.options.nth_best_config]
-                ],
+                _rs,
+                self.options.aircraft_model,
+                self.options.nth_best_config,
             )
-            _new_rs = route_stats(self.driver, self.options.hub, row.IATA)
-            _rs.economy = _new_rs.economy
-            _rs.business = _new_rs.business
-            _rs.first = _new_rs.first
-            _rs.cargo = _new_rs.cargo
-            _rs.scheduled_flights = _new_rs.scheduled_flights
-            self.routes_df.loc[row.Index, "route_stats"] = _rs.to_json()
-            self.routes_df.loc[row.Index, "status"] = Status.RECONFIGURED.value
-            logging.info(f"Reconfigured {self.options.hub} - {row.IATA} flights")
+            self.routes_df.loc[row.Index, "status"] = Status.SCHEDULED.value
+            logging.info(f"Scheduled flights for {self.options.hub} - {row.IATA}")
             self._save_data()
+            self._reconfigure_row(row)
 
     def run(self):
         self.data_file = os.path.join(
@@ -200,5 +225,6 @@ class LongHauls(Command):
         self._buy_new_routes()
         self._fetch_demands()
         self._find_seat_configs()
-        self._mark_negative_demands()
-        self._reconfigure_wrong_flights()
+        self._schedule_flights()
+        # self._mark_negative_demands()
+        # self._reconfigure_wrong_flights()
