@@ -1,5 +1,6 @@
 import argparse
 import logging
+import time
 
 from tycoon.utils.airline_manager import login
 from tycoon.utils.browser import js_click
@@ -29,7 +30,6 @@ class Aircraft(Command):
         self.driver.get(
             f"https://tycoon.airlines-manager.com/aircraft/buy/new/{self.options.aircraft_make.lower()}"
         )
-
         aircraft_list = self.driver.find_elements(
             By.XPATH, '//div[@class="aircraftList"]/div'
         )
@@ -63,9 +63,12 @@ class Aircraft(Command):
                         '//*[@id="aircraft_buyNew_step3"]/div/div[2]/div[10]/div[2]/input',
                     ),
                 )
+                time.sleep(5)
                 logging.info(
                     f"Bought {self.options.number} of {self.options.aircraft_model} to HUB {self.options.hub}"
                 )
+                rc = self.driver.find_element(By.XPATH, '//*[@id="ressource3"]').text
+                logging.info(f"Remaining cash == ${rc}")
 
     def run(self):
         login(self.driver)
