@@ -8,6 +8,7 @@ import pandas as pd
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support.ui import Select
+from tycoon.utils.browser import js_click
 from tycoon.utils.data import (
     RouteStat,
     RouteStats,
@@ -15,6 +16,7 @@ from tycoon.utils.data import (
     WaveStat,
     non_decimal,
 )
+from selenium.common.exceptions import NoSuchElementException
 
 
 def login(driver: WebDriver):
@@ -251,3 +253,105 @@ def buy_route(driver: WebDriver, hub: str, destination: str, hub_id: int):
     )
     driver.find_element(By.XPATH, '//*[@id="linePurchaseForm"]/input').submit()
     logging.info(f"Bought route {hub} -- {destination}")
+
+
+def _assigned_flight_count(driver, hub, destination):
+    _select_route(driver, f"{hub} - {destination}")
+    return int(
+        driver.find_element(
+            By.XPATH, '//div[@id="showLine"]/div[3]/ul[1]/li[2]/strong'
+        ).text
+    )
+
+
+def _searchable_aircraft_model(raw: str):
+    return raw.replace("Ił-", "")
+
+
+def _select_flight(driver: WebDriver, hub_id: int, aircraft_model: str):
+    time.sleep(1)
+    js_click(driver, driver.find_element(By.XPATH, f"//span[@data-hubid='{hub_id}']"))
+    time.sleep(2)
+    el = driver.find_element("id", "aircraftNameFilter")
+    el.clear()
+    el.send_keys(_searchable_aircraft_model(aircraft_model))
+    time.sleep(2)
+    js_click(
+        driver,
+        driver.find_element(
+            By.CSS_SELECTOR, "input[type='radio'][value='utilizationPercentageAsc']"
+        ),
+    )
+
+
+def _check_for_free_aircraft(driver: WebDriver, hub, aircraft_model):
+    time.sleep(1)
+    try:
+        use = driver.find_element(
+            By.XPATH, "//*[@class='aircraftsBox']/div[1]/div[2]/span[1]/b"
+        )
+        if use.text != "0%":
+            raise Exception(f"No free flights in HUB {hub} of type {aircraft_model}")
+    except NoSuchElementException:
+        raise Exception(f"No flights in HUB {hub} of type {aircraft_model}")
+
+
+def _select_route_for_aircraft(driver: WebDriver, hub: str, destination: str):
+    js_click(
+        driver,
+        driver.find_element(
+            By.XPATH, f"//span[contains(text(), '{hub} / {destination}')]"
+        ),
+    )
+
+
+def _schedule_a_flight(driver: WebDriver, hub_id, hub, destination, aircraft_model):
+    driver.get("http://tycoon.airlines-manager.com/network/planning")
+    _select_flight(driver, hub_id, aircraft_model)
+    _check_for_free_aircraft(driver, hub, aircraft_model)
+    _select_route_for_aircraft(driver, hub, destination)
+
+    js_click(
+        driver,
+        driver.find_element(
+            By.XPATH, '//table[@class="planningArea"]/tbody/tr[2]/td[3]'
+        ),
+    )
+    js_click(
+        driver,
+        driver.find_element(
+            By.XPATH, '//div[@id="planning"]/table[1]/tbody/tr[2]/td[1]/img'
+        ),
+    )
+    js_click(driver, driver.find_element("id", "planningSubmit"))
+
+
+def assign_flights(
+    driver: WebDriver,
+    hub_id: int,
+    hub: str,
+    destination: str,
+    route_stats: RouteStats,
+    aircraft_model: str,
+    nth_best_config: 2,
+):
+    best_config = route_stats.wave_stats[
+        list(route_stats.wave_stats.keys())[-nth_best_config]
+    ]
+    logging.info(
+        f"Configuring route {hub} - {destination} with best config:\n\t{best_config}"
+    )
+    assigned_aircrafts = _assigned_flight_count(driver, hub, destination)
+    if assigned_aircrafts > 0 and assigned_aircrafts != len(
+        route_stats.scheduled_flights
+    ):
+        logging.error(
+            "The route has already scheduled flights that are outside of this script."
+        )
+
+    logging.info(
+        f"Excluding already configured {assigned_aircrafts}, scheduing {best_config.no - assigned_aircrafts} flights"
+    )
+    for i in range(0, best_config.no - assigned_aircrafts):
+        logging.info(f"Scheduling flight {i+1}...")
+        _schedule_a_flight(driver, hub_id, hub, destination, aircraft_model)
