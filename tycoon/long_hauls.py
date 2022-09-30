@@ -86,7 +86,6 @@ class LongHauls(Command):
 
     def _save_data(self):
         self.routes_df.to_csv(self.data_file)
-        logging.debug(self.routes_df)
         logging.info(f"Stored routes in {self.data_file}")
 
     def _mark_pre_existing(self):
@@ -100,74 +99,49 @@ class LongHauls(Command):
             ] = Status.PRE_EXISTING.value
             self._save_data()
 
-    def _buy_new_routes(self):
-        df = self.routes_df[self.routes_df["status"] < Status.PRE_EXISTING.value]
-        if df.empty:
-            logging.info("No new routes to buy")
-            return
+    def _fetch_demands(self, idx: int, row: pd.Series):
+        self.routes_df.loc[idx, "route_stats"] = route_stats(
+            self.driver, self.options.hub, row.IATA
+        ).to_json()
+        self.routes_df.loc[idx, "status"] = Status.DEMAND.value
+        logging.info(f"Updated route_stats for {self.options.hub} - {row.IATA}")
 
-        hub_id = find_hub_id(self.driver, self.options.hub)
-        for row in df.itertuples():
-            try:
-                buy_route(
-                    self.driver,
-                    self.options.hub,
-                    row.IATA,
-                    hub_id,
-                )
-            except Exception as ex:
-                self.routes_df.loc[row.Index, "error"] = ex
-                self.routes_df.loc[row.Index, "status"] = Status.UNKNOWN_ERROR.value
-        self._save_data()
-        self._mark_pre_existing()
-        df = self.routes_df[self.routes_df["status"] < Status.PRE_EXISTING.value]
-        logging.error(f"Missing routes to: {df.IATA.values}")
+    def _find_seat_configs(self, idx: int, row: pd.Series):
+        _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
+        self.routes_df.loc[idx, "route_stats"] = find_seat_config(
+            self.driver,
+            self.options.hub,
+            row.IATA,
+            self.options.aircraft_make,
+            self.options.aircraft_model,
+            _rs,
+            self.options.allow_negative,
+        ).to_json()
+        self.routes_df.loc[idx, "status"] = Status.SEAT_CONFIG.value
+        logging.info(f"Updated seat_configs for {self.options.hub} - {row.IATA}")
 
-    def _fetch_demands(self):
-        df = self.routes_df[self.routes_df["status"] == Status.PRE_EXISTING.value]
-        for row in df.itertuples():
-            self.routes_df.loc[row.Index, "route_stats"] = route_stats(
-                self.driver, self.options.hub, row.IATA
-            ).to_json()
-            self.routes_df.loc[row.Index, "status"] = Status.DEMAND.value
-            logging.info(f"Updated route_stats for {self.options.hub} - {row.IATA}")
-            self._save_data()
-
-    def _find_seat_configs(self):
-        df = self.routes_df[self.routes_df["status"] == Status.DEMAND.value]
-        for row in df.itertuples():
-            _rs = RouteStats.from_json(self.routes_df.loc[row.Index, "route_stats"])
-            self.routes_df.loc[row.Index, "route_stats"] = find_seat_config(
-                self.driver,
-                self.options.hub,
-                row.IATA,
-                self.options.aircraft_make,
-                self.options.aircraft_model,
-                _rs,
-                self.options.allow_negative,
-            ).to_json()
-            self.routes_df.loc[row.Index, "status"] = Status.SEAT_CONFIG.value
-            logging.info(f"Updated seat_configs for {self.options.hub} - {row.IATA}")
-            self._save_data()
-
-    def _mark_negative_demands(self):
-        df = self.routes_df[self.routes_df["status"] == Status.SEAT_CONFIG.value]
-        for row in df.itertuples():
-            _rs = RouteStats.from_json(self.routes_df.loc[row.Index, "route_stats"])
-            if (
-                int(_rs.economy.remaining_demand) < 0
-                or int(_rs.business.remaining_demand) < 0
-                or int(_rs.first.remaining_demand) < 0
-                or int(_rs.cargo.remaining_demand) < 0
-            ):
+    def _mark_negative_for_reconfigure(self, idx: int, row: pd.Series):
+        _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
+        checks = [
+            _rs.economy,
+            _rs.business,
+            _rs.first,
+            _rs.cargo,
+        ]
+        for c in checks:
+            if int(getattr(c, "remaining_demand")) < 0:
                 logging.info(
-                    f"Found negative demand in {self.options.hub} - {row.IATA}, {_rs}"
+                    f"Found negative demand in {self.options.hub} - {row.IATA}, {c}"
                 )
-                self.routes_df.loc[row.Index, "status"] = Status.NEGATIVE_DEMAND.value
-                self._save_data()
+                logging.debug(_rs)
+                self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
+                return
 
-    def _reconfigure_row(self, row):
-        _rs = RouteStats.from_json(self.routes_df.loc[row.Index, "route_stats"])
+        logging.info(f"All is perfect for {self.options.hub} - {row.IATA}")
+        self.routes_df.loc[idx, "status"] = Status.PERFECT.value
+
+    def _reconfigure_flights(self, idx: int, row: pd.Series):
+        _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
         logging.info(f"Reconfigure {self.options.hub} - {row.IATA} flights...")
         reconfigure_flight_seats(
             self.driver,
@@ -176,39 +150,43 @@ class LongHauls(Command):
             _rs.wave_stats[list(_rs.wave_stats.keys())[-self.options.nth_best_config]],
         )
         _new_rs = route_stats(self.driver, self.options.hub, row.IATA)
+        logging.debug(_new_rs)
         _rs.economy = _new_rs.economy
         _rs.business = _new_rs.business
         _rs.first = _new_rs.first
         _rs.cargo = _new_rs.cargo
         _rs.scheduled_flights = _new_rs.scheduled_flights
-        self.routes_df.loc[row.Index, "route_stats"] = _rs.to_json()
-        self.routes_df.loc[row.Index, "status"] = Status.RECONFIGURED.value
+        self.routes_df.loc[idx, "route_stats"] = _rs.to_json()
+        self.routes_df.loc[idx, "status"] = Status.RECONFIGURED.value
         logging.info(f"Reconfigured {self.options.hub} - {row.IATA} flights")
-        self._save_data()
 
-    def _reconfigure_wrong_flights(self):
-        df = self.routes_df[self.routes_df["status"] == Status.NEGATIVE_DEMAND.value]
-        for row in df.itertuples():
-            self._reconfigure_row(row)
+    def _schedule_flights(self, idx: int, row: pd.Series):
+        _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
+        assign_flights(
+            self.driver,
+            self.hub_id,
+            self.options.hub,
+            row.IATA,
+            _rs,
+            self.options.aircraft_model,
+            self.options.nth_best_config,
+        )
+        self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
+        logging.info(f"Scheduled flights for {self.options.hub} - {row.IATA}")
 
-    def _schedule_flights(self):
-        df = self.routes_df[self.routes_df["status"] == Status.SEAT_CONFIG.value]
-        hub_id = find_hub_id(self.driver, self.options.hub)
-        for row in df.itertuples():
-            _rs = RouteStats.from_json(self.routes_df.loc[row.Index, "route_stats"])
-            assign_flights(
+    def _buy_route(self, idx: int, row: pd.Series):
+        try:
+            buy_route(
                 self.driver,
-                hub_id,
                 self.options.hub,
                 row.IATA,
-                _rs,
-                self.options.aircraft_model,
-                self.options.nth_best_config,
+                self.hub_id,
             )
-            self.routes_df.loc[row.Index, "status"] = Status.SCHEDULED.value
-            logging.info(f"Scheduled flights for {self.options.hub} - {row.IATA}")
-            self._save_data()
-            self._reconfigure_row(row)
+            self.routes_df.loc[idx, "status"] = Status.PRE_EXISTING.value
+        except Exception as ex:
+            logging.error(f"Route {self.options.hub} - {row.IATA}", ex)
+            self.routes_df.loc[idx, "error"] = ex
+            self.routes_df.loc[idx, "status"] = Status.UNKNOWN_ERROR.value
 
     def run(self):
         self.data_file = os.path.join(
@@ -220,11 +198,33 @@ class LongHauls(Command):
         else:
             self.routes_df = self._find_routes(self.data_file)
 
+        fnMap = {
+            Status.UNRESOLVED.value: self._buy_route,
+            Status.PRE_EXISTING.value: self._fetch_demands,
+            Status.DEMAND.value: self._find_seat_configs,
+            Status.SEAT_CONFIG.value: self._schedule_flights,
+            Status.SCHEDULED.value: self._reconfigure_flights,
+            Status.RECONFIGURED.value: self._mark_negative_for_reconfigure,
+        }
+
+        print(self.routes_df.groupby(["status"]).count()["IATA"])
         login(self.driver)
-        self._mark_pre_existing()
-        self._buy_new_routes()
-        self._fetch_demands()
-        self._find_seat_configs()
-        self._schedule_flights()
-        # self._mark_negative_demands()
-        # self._reconfigure_wrong_flights()
+        try:
+            self._mark_pre_existing()
+            self.hub_id = find_hub_id(self.driver, self.options.hub)
+            for idx in self.routes_df.index:
+                row = self.routes_df.loc[idx]
+                logging.debug(row)
+                while fnMap.get(row.status, None):
+                    logging.info(
+                        f"Processing route to {row.IATA} with status {row.status} with {fnMap.get(row.status).__name__}"
+                    )
+                    fnMap.get(row.status)(idx, row)
+                    self._save_data()
+                    row = self.routes_df.loc[idx]
+                    logging.debug(row)
+        except Exception as ex:
+            raise ex
+        finally:
+            self._save_data()
+            print(self.routes_df.groupby(["status"]).count()["IATA"])
