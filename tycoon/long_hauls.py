@@ -166,6 +166,26 @@ class LongHauls(Command):
 
     def _schedule_flights(self, idx: int, row: pd.Series):
         _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
+        choosen_config = _rs.wave_stats[
+            list(_rs.wave_stats.keys())[-self.options.nth_best_config]
+        ]
+        if len(_rs.scheduled_flights) == choosen_config.no:
+            if (
+                len(set([x.model for x in _rs.scheduled_flights])) != 1
+                or set([x.model for x in _rs.scheduled_flights]).pop().lower()
+                != self.options.aircraft_model.lower()
+            ):
+                logging.error(
+                    f"Route has different flight configured already: {_rs.scheduled_flights}"
+                )
+                raise Exception("Wrong aircraft config requested")
+
+            self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
+            logging.info(
+                f"Route already has {choosen_config.no} flights configured, skipping."
+            )
+            return
+
         assign_flights(
             self.driver,
             self.hub_id,
