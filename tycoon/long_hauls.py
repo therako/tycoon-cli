@@ -153,6 +153,9 @@ class LongHauls(Command):
             row.IATA,
             _rs.wave_stats[list(_rs.wave_stats.keys())[-self.options.nth_best_config]],
         )
+        self._fetch_stats(idx, row, _rs)
+
+    def _fetch_stats(self, idx: int, row: pd.Series, _rs: RouteStats):
         _new_rs = route_stats(self.driver, self.options.hub, row.IATA)
         logging.debug(_new_rs)
         _rs.economy = _new_rs.economy
@@ -184,6 +187,7 @@ class LongHauls(Command):
             logging.info(
                 f"Route already has {choosen_config.no} flights configured, skipping."
             )
+            self._fetch_stats(idx, row, _rs)
             return
 
         assign_flights(
@@ -196,6 +200,7 @@ class LongHauls(Command):
             self.options.nth_best_config,
         )
         self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
+        self._fetch_stats(idx, row, _rs)
         logging.info(f"Scheduled flights for {self.options.hub} - {row.IATA}")
 
     def _buy_route(self, idx: int, row: pd.Series):
