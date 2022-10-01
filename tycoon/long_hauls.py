@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import re
 from tycoon.utils.airline_manager import (
     assign_flights,
     buy_route,
@@ -23,10 +24,12 @@ class Status(Enum):
     DEMAND = 3
     SEAT_CONFIG = 4
     SCHEDULED = 5
-    NEGATIVE_DEMAND = 6
-    RECONFIGURED = 7
+    RECONFIGURE = 7
     PERFECT = 8
     UNKNOWN_ERROR = 20
+
+
+AIRCRAFT_SEAT_REGX = r"\((\d+)\/(\d+)\/(\d+)\)"
 
 
 class LongHauls(Command):
@@ -95,7 +98,7 @@ class LongHauls(Command):
                 filter(None, get_all_routes(self.driver, self.options.hub))
             )
             self.routes_df.loc[
-                self.routes_df["IATA"].isin(bought_routes), "status"
+                df["IATA"].isin(bought_routes).index, "status"
             ] = Status.PRE_EXISTING.value
             self._save_data()
 
@@ -120,21 +123,22 @@ class LongHauls(Command):
         self.routes_df.loc[idx, "status"] = Status.SEAT_CONFIG.value
         logging.info(f"Updated seat_configs for {self.options.hub} - {row.IATA}")
 
-    def _mark_negative_for_reconfigure(self, idx: int, row: pd.Series):
+    def _check_configuration(self, idx: int, row: pd.Series):
         _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
-        checks = [
-            _rs.economy,
-            _rs.business,
-            _rs.first,
-            _rs.cargo,
+        picked_config = _rs.wave_stats[
+            list(_rs.wave_stats.keys())[-self.options.nth_best_config]
         ]
-        for c in checks:
-            if int(getattr(c, "remaining_demand")) < 0:
+        for sf in _rs.scheduled_flights:
+            seat_config = re.search(AIRCRAFT_SEAT_REGX, sf.seat_config)
+            if (
+                int(seat_config.group(1)) != int(picked_config.economy)
+                or int(seat_config.group(2)) != int(picked_config.business)
+                or int(seat_config.group(3)) != int(picked_config.first)
+            ):
+                self.routes_df.loc[idx, "status"] = Status.RECONFIGURE.value
                 logging.info(
-                    f"Found negative demand in {self.options.hub} - {row.IATA}, {c}"
+                    f"Seat config not matching {sf.seat_config} to {picked_config}"
                 )
-                logging.debug(_rs)
-                self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
                 return
 
         logging.info(f"All is perfect for {self.options.hub} - {row.IATA}")
@@ -157,8 +161,8 @@ class LongHauls(Command):
         _rs.cargo = _new_rs.cargo
         _rs.scheduled_flights = _new_rs.scheduled_flights
         self.routes_df.loc[idx, "route_stats"] = _rs.to_json()
-        self.routes_df.loc[idx, "status"] = Status.RECONFIGURED.value
-        logging.info(f"Reconfigured {self.options.hub} - {row.IATA} flights")
+        self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
+        logging.info(f"ReconfigurE {self.options.hub} - {row.IATA} flights")
 
     def _schedule_flights(self, idx: int, row: pd.Series):
         _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
@@ -203,8 +207,8 @@ class LongHauls(Command):
             Status.PRE_EXISTING.value: self._fetch_demands,
             Status.DEMAND.value: self._find_seat_configs,
             Status.SEAT_CONFIG.value: self._schedule_flights,
-            Status.SCHEDULED.value: self._reconfigure_flights,
-            Status.RECONFIGURED.value: self._mark_negative_for_reconfigure,
+            Status.SCHEDULED.value: self._check_configuration,
+            Status.RECONFIGURE.value: self._reconfigure_flights,
         }
 
         print(self.routes_df.groupby(["status"]).count()["IATA"])
