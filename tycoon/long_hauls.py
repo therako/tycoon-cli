@@ -103,11 +103,16 @@ class LongHauls(Command):
             self._save_data()
 
     def _fetch_demands(self, idx: int, row: pd.Series):
-        self.routes_df.loc[idx, "route_stats"] = route_stats(
-            self.driver, self.options.hub, row.IATA
-        ).to_json()
-        self.routes_df.loc[idx, "status"] = Status.DEMAND.value
-        logging.info(f"Updated route_stats for {self.options.hub} - {row.IATA}")
+        try:
+            self.routes_df.loc[idx, "route_stats"] = route_stats(
+                self.driver, self.options.hub, row.IATA
+            ).to_json()
+            self.routes_df.loc[idx, "status"] = Status.DEMAND.value
+            logging.info(f"Updated route_stats for {self.options.hub} - {row.IATA}")
+        except Exception as ex:
+            logging.error(f"Route {self.options.hub} - {row.IATA}", ex)
+            self.routes_df.loc[idx, "error"] = ex
+            self.routes_df.loc[idx, "status"] = Status.UNKNOWN_ERROR.value
 
     def _find_seat_configs(self, idx: int, row: pd.Series):
         _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
@@ -183,11 +188,11 @@ class LongHauls(Command):
                 )
                 raise Exception("Wrong aircraft config requested")
 
-            self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
+            self._fetch_stats(idx, row, _rs)
             logging.info(
                 f"Route already has {choosen_config.no} flights configured, skipping."
             )
-            self._fetch_stats(idx, row, _rs)
+            self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
             return
 
         assign_flights(
@@ -199,8 +204,8 @@ class LongHauls(Command):
             self.options.aircraft_model,
             self.options.nth_best_config,
         )
-        self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
         self._fetch_stats(idx, row, _rs)
+        self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
         logging.info(f"Scheduled flights for {self.options.hub} - {row.IATA}")
 
     def _buy_route(self, idx: int, row: pd.Series):
