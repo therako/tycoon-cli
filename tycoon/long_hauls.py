@@ -129,6 +129,7 @@ class LongHauls(Command):
         logging.info(f"Updated seat_configs for {self.options.hub} - {row.IATA}")
 
     def _check_configuration(self, idx: int, row: pd.Series):
+        self._fetch_stats(idx, row)
         _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
         picked_config = _rs.wave_stats[
             list(_rs.wave_stats.keys())[-self.options.nth_best_config]
@@ -158,9 +159,10 @@ class LongHauls(Command):
             row.IATA,
             _rs.wave_stats[list(_rs.wave_stats.keys())[-self.options.nth_best_config]],
         )
-        self._fetch_stats(idx, row, _rs)
+        self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
 
-    def _fetch_stats(self, idx: int, row: pd.Series, _rs: RouteStats):
+    def _fetch_stats(self, idx: int, row: pd.Series):
+        _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
         _new_rs = route_stats(self.driver, self.options.hub, row.IATA)
         logging.debug(_new_rs)
         _rs.economy = _new_rs.economy
@@ -169,8 +171,7 @@ class LongHauls(Command):
         _rs.cargo = _new_rs.cargo
         _rs.scheduled_flights = _new_rs.scheduled_flights
         self.routes_df.loc[idx, "route_stats"] = _rs.to_json()
-        self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
-        logging.info(f"ReconfigurE {self.options.hub} - {row.IATA} flights")
+        logging.info(f"Stats updated for route: {self.options.hub} - {row.IATA}")
 
     def _schedule_flights(self, idx: int, row: pd.Series):
         _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
@@ -188,7 +189,6 @@ class LongHauls(Command):
                 )
                 raise Exception("Wrong aircraft config requested")
 
-            self._fetch_stats(idx, row, _rs)
             logging.info(
                 f"Route already has {choosen_config.no} flights configured, skipping."
             )
@@ -204,7 +204,6 @@ class LongHauls(Command):
             self.options.aircraft_model,
             self.options.nth_best_config,
         )
-        self._fetch_stats(idx, row, _rs)
         self.routes_df.loc[idx, "status"] = Status.SCHEDULED.value
         logging.info(f"Scheduled flights for {self.options.hub} - {row.IATA}")
 
