@@ -44,5 +44,5 @@ class Command:
         )
 
     def __init__(self, driver: WebDriver, options: Any) -> None:
-        self.driver = driver
+        self.driver: WebDriver = driver
         self.options = options
