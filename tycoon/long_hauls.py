@@ -87,9 +87,20 @@ class LongHauls(Command):
         routes_df["status"] = Status.UNRESOLVED.value
         return routes_df
 
-    def _save_data(self):
+    def _save_data(self, print_stats=False):
         self.routes_df.to_csv(self.data_file)
         logging.info(f"Stored routes in {self.data_file}")
+        if print_stats:
+            logging.info("***** Stats of stored *****")
+            self.routes_df.groupby(["status"]).count()["IATA"].reset_index(
+                name="count"
+            ).apply(
+                lambda x: logging.info(
+                    f"{Status(x.status)}, no of routes: {x['count']}"
+                ),
+                axis=1,
+            )
+            logging.info("**********")
 
     def _mark_pre_existing(self):
         df = self.routes_df[self.routes_df["status"] == Status.UNRESOLVED.value]
@@ -97,10 +108,10 @@ class LongHauls(Command):
             bought_routes = list(
                 filter(None, get_all_routes(self.driver, self.options.hub))
             )
-            self.routes_df.loc[
-                df["IATA"].isin(bought_routes).index, "status"
-            ] = Status.PRE_EXISTING.value
-            self._save_data()
+            if df["IATA"].isin(bought_routes).any():
+                self.routes_df.loc[
+                    df["IATA"].isin(bought_routes).index, "status"
+                ] = Status.PRE_EXISTING.value
 
     def _fetch_demands(self, idx: int, row: pd.Series):
         try:
@@ -240,10 +251,10 @@ class LongHauls(Command):
             Status.RECONFIGURE.value: self._reconfigure_flights,
         }
 
-        print(self.routes_df.groupby(["status"]).count()["IATA"])
         login(self.driver)
         try:
             self._mark_pre_existing()
+            self._save_data(True)
             self.hub_id = find_hub_id(self.driver, self.options.hub)
             for idx in self.routes_df.index:
                 row = self.routes_df.loc[idx]
@@ -259,5 +270,4 @@ class LongHauls(Command):
         except Exception as ex:
             raise ex
         finally:
-            self._save_data()
-            print(self.routes_df.groupby(["status"]).count()["IATA"])
+            self._save_data(True)
