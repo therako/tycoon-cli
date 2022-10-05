@@ -134,7 +134,7 @@ class LongHauls(Command):
             self.options.aircraft_make,
             self.options.aircraft_model,
             _rs,
-            self.options.allow_negative,
+            not self.options.allow_negative,
         ).to_json()
         self.routes_df.loc[idx, "status"] = Status.SEAT_CONFIG.value
         logging.info(f"Updated seat_configs for {self.options.hub} - {row.IATA}")
