@@ -176,6 +176,32 @@ def find_seat_config(
     return route_stats
 
 
+def find_seat_config_for_multiple_routes(
+    driver,
+    source: str,
+    destinations: List[str],
+    aircraft_make: str,
+    aircraft_model: str,
+    route_stats_list: List[RouteStats],
+    no_negative=False,
+) -> Dict[int, WaveStat]:
+    logging.info(
+        f"Finding seat configs for {source} to {destinations} with {aircraft_make} {aircraft_model}"
+    )
+    driver.get("https://destinations.noway.info/en/seatconfigurator/index.html")
+    _clear_previous_configs(driver)
+    _select_option(driver, "cf_aircraftmake", aircraft_make)
+    _select_option(driver, "cf_aircraftmodel", aircraft_model)
+
+    _change_to_airport_codes(driver)
+    for idx, route_stats in enumerate(route_stats_list):
+        _fillin_route_stats(driver, source, destinations[idx], route_stats)
+
+    time.sleep(5)
+    _calculate_seat_config(driver, no_negative)
+    return _scan_seat_configs(driver)
+
+
 def _scrape_route_details(driver) -> List[List[str]]:
     routes_table = driver.find_element("id", "routefinderresults")
     routes = [["id", "country", "IATA", "cat", "stars", "duration", "distance"]]

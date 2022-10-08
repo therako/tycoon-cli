@@ -14,7 +14,7 @@ from tycoon.utils.airline_manager import (
 
 from tycoon.utils.command import Command
 from tycoon.utils.data import CircuitInfo, RouteStats
-from tycoon.utils.noway import find_circuit, find_seat_config
+from tycoon.utils.noway import find_circuit, find_seat_config_for_multiple_routes
 
 
 class Status(Enum):
@@ -157,23 +157,40 @@ class Circuit(Command):
             self._save_data()
 
     def _get_seat_configs(self):
-        for row in self.df[
-            self.df["status"] == Status.DEMAND_FETCHED.value
-        ].itertuples():
-            _rs = RouteStats.from_json(self.df.loc[row.Index, "route_stats"])
-            self.df.loc[row.Index, "route_stats"] = find_seat_config(
+        pending_df = self.df[self.df["status"] == Status.DEMAND_FETCHED.value]
+        if pending_df.empty:
+            return
+
+        circut_ids = list(pending_df.groupby(["circuit_id"]).groups.keys())
+        for circut_id in circut_ids:
+            logging.info(f"Finding circuit seat config for {circut_id}")
+            destinations = []
+            circuit_stats = []
+            for circuit_row in self.df[self.df["circuit_id"] == circut_id].itertuples():
+                destinations.append(circuit_row.destination)
+                circuit_stats.append(RouteStats.from_json(circuit_row.route_stats))
+
+            wave_stats = find_seat_config_for_multiple_routes(
                 self.driver,
                 self.options.hub,
-                row.destination,
+                destinations,
                 self.options.aircraft_make,
                 self.options.aircraft_model,
-                _rs,
+                circuit_stats,
                 not self.options.allow_negative,
-            ).to_json()
-            logging.info(
-                f"Updated route_stats for {self.options.hub} - {row.destination}"
             )
-            self.df.loc[row.Index, "status"] = Status.SEAT_CONFIG_CALCULATED.value
+
+            for circuit_row in self.df[self.df["circuit_id"] == circut_id].itertuples():
+                _rs = RouteStats.from_json(circuit_row.route_stats)
+                _rs.wave_stats = wave_stats
+                self.df.loc[circuit_row.Index, "route_stats"] = _rs.to_json()
+                self.df.loc[
+                    circuit_row.Index, "status"
+                ] = Status.SEAT_CONFIG_CALCULATED.value
+
+            logging.info(
+                f"Updated circuit route_stats for id: {circut_id}, with {wave_stats}"
+            )
             self._save_data()
 
     def run(self):
@@ -182,7 +199,7 @@ class Circuit(Command):
         )
         if os.path.exists(self.data_file):
             logging.info(f"Found data at {self.data_file}")
-            self.df = pd.read_csv(self.data_file)
+            self.df = pd.read_csv(self.data_file, index_col=0)
         else:
             self.df = self._new_df()
 
