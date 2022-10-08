@@ -73,3 +73,11 @@ class CircuitRow:
     stars: int
     distance: str
     time: str
+
+
+@dataclass_json
+@dataclass
+class CircuitInfo:
+    id: int
+    rows: List[CircuitRow]
+    status: int

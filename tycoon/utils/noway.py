@@ -10,7 +10,14 @@ from selenium.common.exceptions import (
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from tycoon.utils.browser import js_click
-from tycoon.utils.data import CircuitRow, RouteStats, WaveStat, decode_cost, non_decimal
+from tycoon.utils.data import (
+    CircuitInfo,
+    CircuitRow,
+    RouteStats,
+    WaveStat,
+    decode_cost,
+    non_decimal,
+)
 
 
 @retry(ElementClickInterceptedException, delay=5, tries=6, logger=None)
@@ -22,7 +29,7 @@ def _change_to_airport_codes(driver):
         pass
 
 
-def _clear_previous_seat_configs(driver):
+def _clear_previous_configs(driver):
     rows = driver.find_elements(
         By.XPATH, '//*[@id="nwy_seatconfigurator_circuitinfo"]/table/tbody/tr'
     )
@@ -222,7 +229,7 @@ def _fillin_circuit_info(driver, source: str, excluded_dest: str, hours: int):
     circut.select_by_visible_text(f"{hours} hours")
 
 
-def _get_circuit_info(driver) -> List[CircuitRow]:
+def _get_circuit_info(driver, next_id: int, new_circuit_status: int) -> CircuitInfo:
     circuit_rows = []
     for idx, element in enumerate(
         driver.find_elements(
@@ -249,7 +256,8 @@ def _get_circuit_info(driver) -> List[CircuitRow]:
         except Exception:
             break
 
-    return circuit_rows
+    circuit_rows
+    return CircuitInfo(id=next_id, rows=circuit_rows, status=new_circuit_status)
 
 
 def find_circuit(
@@ -259,11 +267,13 @@ def find_circuit(
     hours: int,
     aircraft_make: str,
     aircraft_model: str,
-) -> List[CircuitRow]:
+    next_id: int,
+    new_circuit_status=3,
+) -> CircuitInfo:
     driver.get("https://destinations.noway.info/en/circuitfinder/index.html")
     _select_aircraft(driver, aircraft_make, aircraft_model)
     _change_to_airport_codes(driver)
     _fillin_circuit_info(driver, source, exclude_routes, hours)
     js_click(driver, driver.find_element("id", "cf_search"))
     time.sleep(10)
-    return _get_circuit_info(driver)
+    return _get_circuit_info(driver, next_id, new_circuit_status)

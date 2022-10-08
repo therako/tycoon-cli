@@ -63,6 +63,7 @@ class LongHauls(Command):
             help="""
                 Allow negative config of seats (Default: False)
             """,
+            default=False,
         )
         sub_parser.add_argument(
             "--nth_best_config",
