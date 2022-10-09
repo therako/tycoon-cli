@@ -2,6 +2,7 @@ import argparse
 from enum import Enum
 import logging
 import os
+from typing import List
 import pandas as pd
 import numpy as np
 from tycoon.utils.airline_manager import (
@@ -13,7 +14,7 @@ from tycoon.utils.airline_manager import (
 )
 
 from tycoon.utils.command import Command
-from tycoon.utils.data import CircuitInfo, RouteStats
+from tycoon.utils.data import CircuitInfo, RouteStats, WaveStat
 from tycoon.utils.noway import find_circuit, find_seat_config_for_multiple_routes
 
 
@@ -57,6 +58,13 @@ class Circuit(Command):
                 Find a new circuit and plan flights in them (Default: False)
             """,
             default=False,
+        )
+        sub_parser.add_argument(
+            "--nth_best_config",
+            "-n",
+            type=int,
+            help="Configure with the nth best seat config based on turnover (Default: 2)",
+            default=2,
         )
 
     def _new_df(self) -> pd.DataFrame:
@@ -193,6 +201,29 @@ class Circuit(Command):
             )
             self._save_data()
 
+    def _best_configs(self):
+        circut_ids = list(self.df.groupby(["circuit_id"]).groups.keys())
+        for circut_id in circut_ids:
+            logging.info(f"Finding Best seat config for circuit {circut_id}")
+            circuit_stats: List[RouteStats] = []
+            for circuit_row in self.df[self.df["circuit_id"] == circut_id].itertuples():
+                circuit_stats.append(RouteStats.from_json(circuit_row.route_stats))
+
+            logging.info(f"Destinations in circuit:")
+            print(
+                self.df[self.df["circuit_id"] == circut_id][
+                    ["no", "destination", "country", "cat", "stars", "distance", "time"]
+                ]
+            )
+            logging.info(f"Best circuit seat config:")
+            stat: WaveStat = circuit_stats[0].wave_stats[
+                list(circuit_stats[0].wave_stats.keys())[-self.options.nth_best_config]
+            ]
+            logging.info(
+                f"Buy {7 * stat.no} flights of {self.options.aircraft_make} - {self.options.aircraft_model}"
+            )
+            logging.info(f"With seat configs from {stat}")
+
     def run(self):
         self.data_file = os.path.join(
             self.options.tmp_folder, f"{self.options.hub}_circuit_df.csv"
@@ -215,4 +246,5 @@ class Circuit(Command):
         self.hub_id = find_hub_id(self.driver, self.options.hub)
         self._buy_circuit_routes()
         self._get_seat_configs()
+        self._best_configs()
         self._save_data(True)
