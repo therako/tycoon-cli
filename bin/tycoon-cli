@@ -6,7 +6,9 @@ import time
 import traceback
 
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from webdriver_manager.firefox import GeckoDriverManager
 from tycoon.aircraft import Aircraft
 from tycoon.analyse_hub import AnalyseHub
 from tycoon.long_hauls import LongHauls
@@ -49,8 +51,10 @@ if __name__ == "__main__":
         if not options.no_headless:
             chrome_options.add_argument("--headless")
 
-        driver = webdriver.Chrome(options=chrome_options)
-
+        driver = webdriver.Firefox(
+            service=FirefoxService(GeckoDriverManager().install()),
+            options=chrome_options,
+        )
         for k, v in COMMANDS.items():
             if options.command == k:
                 getattr(v(driver, options), "run")()
