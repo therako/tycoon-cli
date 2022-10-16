@@ -154,7 +154,6 @@ def get_all_routes(driver, hub: str) -> List[str]:
     hub_id = find_hub_id(driver, hub)
     driver.get(f"http://tycoon.airlines-manager.com/network/showhub/{hub_id}/linelist")
     route_elements = driver.find_elements(By.XPATH, '//*[@id="lineList"]/div')
-
     destinations = []
     for route_element in route_elements:
         destinations.append(_extract_destination(hub, route_element))

@@ -87,6 +87,7 @@ class Circuit(Command):
                 ("scheduled_flights_count", int),
                 ("raw_stat", str),
                 ("error", str),
+                ("route_stats", str),
             ]
         )
         df = pd.DataFrame(np.empty(0, dtype=dtypes))
@@ -109,6 +110,7 @@ class Circuit(Command):
                 self.options.aircraft_model,
                 None,
                 0,
+                None,
                 None,
                 None,
             ]
@@ -203,6 +205,12 @@ class Circuit(Command):
             )
             self._save_data()
 
+    def _print_circuits(self):
+        circut_ids = list(self.df.groupby(["circuit_id"]).groups.keys())
+        for circut_id in circut_ids:
+            logging.info(f"Circuit Info, ID: {circut_id}")
+            print(self.df[self.df["circuit_id"] == circut_id])
+
     def _buy_flights(self):
         pending_df = self.df[self.df["status"] == Status.SEAT_CONFIG_CALCULATED.value]
         if pending_df.empty:
@@ -254,6 +262,7 @@ class Circuit(Command):
             self.df = self._new_df()
 
         self._save_data(True)
+        login(self.driver)
         if self.options.find_new_circuit:
             logging.info("Requested for a new circuit")
             self._find_a_new_circuit(
@@ -261,9 +270,9 @@ class Circuit(Command):
                 if np.isnan(self.df["circuit_id"].max())
                 else self.df["circuit_id"].max() + 1
             )
-        login(self.driver)
         self.hub_id = find_hub_id(self.driver, self.options.hub)
         self._buy_circuit_routes()
         self._get_seat_configs()
         self._buy_flights()
+        self._print_circuits()
         self._save_data(True)
