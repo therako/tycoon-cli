@@ -6,6 +6,7 @@ from typing import List
 import pandas as pd
 import numpy as np
 from tycoon.utils.airline_manager import (
+    buy_aircraft,
     buy_route,
     find_hub_id,
     get_all_routes,
@@ -24,6 +25,7 @@ class Status(Enum):
     BOUGHT_CIRCUIT = 4
     DEMAND_FETCHED = 5
     SEAT_CONFIG_CALCULATED = 6
+    BOUGHT_FLIGHTS = 7
     UNKNOWN_ERROR = 20
 
 
@@ -137,11 +139,11 @@ class Circuit(Command):
         logging.info(f"Stored routes in {self.data_file}")
         if print_stats:
             logging.info("***** Stats of stored *****")
-            self.df.groupby(["status"]).count()["circuit_id"].reset_index(
+            self.df.groupby(["status"]).nunique()["circuit_id"].reset_index(
                 name="count"
             ).apply(
                 lambda x: logging.info(
-                    f"{Status(x.status)}, no of routes: {x['count']}"
+                    f"{Status(x.status)}, no of circuits: {x['count']}"
                 ),
                 axis=1,
             )
@@ -201,8 +203,12 @@ class Circuit(Command):
             )
             self._save_data()
 
-    def _best_configs(self):
-        circut_ids = list(self.df.groupby(["circuit_id"]).groups.keys())
+    def _buy_flights(self):
+        pending_df = self.df[self.df["status"] == Status.SEAT_CONFIG_CALCULATED.value]
+        if pending_df.empty:
+            return
+
+        circut_ids = list(pending_df.groupby(["circuit_id"]).groups.keys())
         for circut_id in circut_ids:
             logging.info(f"Finding Best seat config for circuit {circut_id}")
             circuit_stats: List[RouteStats] = []
@@ -223,6 +229,19 @@ class Circuit(Command):
                 f"Buy {7 * stat.no} flights of {self.options.aircraft_make} - {self.options.aircraft_model}"
             )
             logging.info(f"With seat configs from {stat}")
+            logging.info(f"Buying flights for {circut_id}")
+            buy_aircraft(
+                self.driver,
+                self.options.hub,
+                f"circuit_{circut_id}",
+                self.options.aircraft_make,
+                self.options.aircraft_model,
+                7 * stat.no,
+                stat,
+            )
+            for circuit_row in self.df[self.df["circuit_id"] == circut_id].itertuples():
+                self.df.loc[circuit_row.Index, "status"] = Status.BOUGHT_FLIGHTS.value
+            self._save_data()
 
     def run(self):
         self.data_file = os.path.join(
@@ -246,5 +265,5 @@ class Circuit(Command):
         self.hub_id = find_hub_id(self.driver, self.options.hub)
         self._buy_circuit_routes()
         self._get_seat_configs()
-        self._best_configs()
+        self._buy_flights()
         self._save_data(True)

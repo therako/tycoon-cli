@@ -7,6 +7,7 @@ from typing import List, Tuple
 
 import pandas as pd
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support.ui import Select
 from tycoon.utils.browser import js_click
@@ -357,3 +358,97 @@ def assign_flights(
     for i in range(0, best_config.no - assigned_aircrafts):
         logging.info(f"Scheduling flight {i+1}...")
         _schedule_a_flight(driver, hub_id, hub, destination, aircraft_model)
+
+
+def buy_aircraft(
+    driver: WebDriver,
+    hub: str,
+    destination: str,
+    aircraft_make: str,
+    aircraft_model: str,
+    number: int,
+    seat_config: WaveStat = None,
+):
+    logging.info(f"Buying {number} of {aircraft_make} - {aircraft_model} to HUB {hub}")
+    driver.get(
+        f"https://tycoon.airlines-manager.com/aircraft/buy/new/{aircraft_make.lower()}"
+    )
+    time.sleep(5)
+    aircraft_list = driver.find_elements(By.XPATH, '//div[@class="aircraftList"]/div')
+    for aircraft in aircraft_list:
+        if aircraft.get_attribute("id") == "noAircraftFound":
+            continue
+        if (
+            f"{aircraft_model.lower()} / {aircraft_make.lower()}"
+            in aircraft.find_element(By.CLASS_NAME, "title").text.lower()
+        ):
+            js_click(
+                driver,
+                aircraft.find_element(By.XPATH, "form/div[1]/div[3]/div/span[1]/img"),
+            )
+            el = aircraft.find_element(
+                By.XPATH, "form/div[1]/div[3]/div/span[2]/input[1]"
+            )
+            el.clear()
+            el.send_keys(str(number))
+            el.send_keys(Keys.ENTER)
+            time.sleep(2)
+            aircraft_hub = Select(driver.find_element("id", "aircraft_hub"))
+            for option in aircraft_hub.options:
+                if hub.lower() in option.text.lower():
+                    option.click()
+
+            time.sleep(2)
+            driver.find_element(
+                By.XPATH,
+                '//*[@id="buyAircraft_bucket"]/form/div[1]/div[1]/div[2]/span[1]/img',
+            ).click()
+            el = driver.find_element(
+                By.XPATH,
+                '//*[@id="buyAircraft_bucket"]/form/div[1]/div[1]/div[2]/span[2]/input[1]',
+            )
+            if seat_config:
+                _clear_all_and_enter(
+                    [
+                        (
+                            driver.find_element(By.CSS_SELECTOR, ".ecoManualInput"),
+                            seat_config.economy,
+                        ),
+                        (
+                            driver.find_element(By.CSS_SELECTOR, ".busManualInput"),
+                            seat_config.business,
+                        ),
+                        (
+                            driver.find_element(By.CSS_SELECTOR, ".firstManualInput"),
+                            seat_config.first,
+                        ),
+                        (
+                            driver.find_element(By.CSS_SELECTOR, ".cargoManualInput"),
+                            seat_config.cargo,
+                        ),
+                        (
+                            driver.find_element(
+                                By.CSS_SELECTOR, ".aircraftName"
+                            ).find_element(By.XPATH, "div/input"),
+                            f"{hub}-{destination}",
+                        ),
+                    ]
+                )
+            el.clear()
+            el.send_keys(Keys.BACKSPACE * 1)
+            el.send_keys(number)
+            el.send_keys(Keys.ENTER)
+            js_click(
+                driver,
+                driver.find_element(
+                    By.XPATH,
+                    '//*[@id="resumeBoxForJs"]/div[2]/form/div[2]/input',
+                ),
+            )
+            time.sleep(5)
+            logging.info(f"Bought {number} of {aircraft_model} to HUB {hub}")
+            rc = driver.find_element(By.XPATH, '//*[@id="ressource3"]').text
+            logging.info(f"Remaining cash == ${rc}")
+            return
+
+    raise Exception("Error finding the aircraft to buy")
