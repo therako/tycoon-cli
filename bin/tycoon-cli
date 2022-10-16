@@ -6,9 +6,10 @@ import time
 import traceback
 
 from selenium import webdriver
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.firefox.service import Service as FirefoxService
-from webdriver_manager.firefox import GeckoDriverManager
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service as ChromiumService
+
 from tycoon.aircraft import Aircraft
 from tycoon.analyse_hub import AnalyseHub
 from tycoon.long_hauls import LongHauls
@@ -48,11 +49,12 @@ if __name__ == "__main__":
     options, _ = parser.parse_known_args()
     log.setup(options.debug_mode)
     try:
+        manager = ChromeDriverManager(version="105.0.5195.52").install()
         if not options.no_headless:
             chrome_options.add_argument("--headless")
 
-        driver = webdriver.Firefox(
-            service=FirefoxService(GeckoDriverManager().install()),
+        driver = webdriver.Chrome(
+            service=ChromiumService(manager),
             options=chrome_options,
         )
         for k, v in COMMANDS.items():
