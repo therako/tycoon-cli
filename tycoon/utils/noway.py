@@ -3,6 +3,7 @@ import time
 from typing import Dict, Any, List
 
 from retry import retry
+import pandas as pd
 from selenium.common.exceptions import (
     ElementClickInterceptedException,
     NoSuchElementException,
@@ -303,3 +304,19 @@ def find_circuit(
     js_click(driver, driver.find_element("id", "cf_search"))
     time.sleep(10)
     return _get_circuit_info(driver, next_id, new_circuit_status)
+
+
+def print_wave_stats(stats: Dict[int, WaveStat]):
+    df = pd.DataFrame()
+    for k, v in stats.items():
+        df.loc[k, "wave_no"] = v.no
+        df.loc[k, "economy"] = v.economy
+        df.loc[k, "business"] = v.business
+        df.loc[k, "first"] = v.first
+        df.loc[k, "cargo"] = v.cargo
+        df.loc[k, "turnover_per_wave"] = v.turnover_per_wave
+        df.loc[k, "roi"] = v.roi
+        df.loc[k, "total_turnover"] = v.total_turnover
+        df.loc[k, "turnover_days"] = v.turnover_days
+        df.loc[k, "max_configured"] = v.max_configured
+    print(df)

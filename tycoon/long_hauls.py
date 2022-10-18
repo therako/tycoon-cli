@@ -254,6 +254,9 @@ class LongHauls(Command):
 
         login(self.driver)
         try:
+            # self.routes_df.loc[self.routes_df["status"] == Status.PERFECT.value,
+            #     "status"
+            # ] = Status.SCHEDULED.value
             self._mark_pre_existing()
             self._save_data(True)
             self.hub_id = find_hub_id(self.driver, self.options.hub)

@@ -327,7 +327,7 @@ def _schedule_a_flight(driver: WebDriver, hub_id, hub, destination, aircraft_mod
     js_click(driver, driver.find_element("id", "planningSubmit"))
 
 
-@retry(delay=5, tries=3)
+@retry(delay=5, tries=5)
 def assign_flights(
     driver: WebDriver,
     hub_id: int,

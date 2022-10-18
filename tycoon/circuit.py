@@ -16,7 +16,11 @@ from tycoon.utils.airline_manager import (
 
 from tycoon.utils.command import Command
 from tycoon.utils.data import CircuitInfo, RouteStats, WaveStat
-from tycoon.utils.noway import find_circuit, find_seat_config_for_multiple_routes
+from tycoon.utils.noway import (
+    find_circuit,
+    find_seat_config_for_multiple_routes,
+    print_wave_stats,
+)
 
 
 class Status(Enum):
@@ -54,7 +58,7 @@ class Circuit(Command):
         )
         sub_parser.add_argument(
             "--find_new_circuit",
-            "-fnc",
+            "-new",
             action="store_true",
             help="""
                 Find a new circuit and plan flights in them (Default: False)
@@ -66,7 +70,7 @@ class Circuit(Command):
             "-n",
             type=int,
             help="Configure with the nth best seat config based on turnover (Default: 2)",
-            default=2,
+            default=3,
         )
 
     def _new_df(self) -> pd.DataFrame:
@@ -208,8 +212,12 @@ class Circuit(Command):
     def _print_circuits(self):
         circut_ids = list(self.df.groupby(["circuit_id"]).groups.keys())
         for circut_id in circut_ids:
-            logging.info(f"Circuit Info, ID: {circut_id}")
-            print(self.df[self.df["circuit_id"] == circut_id])
+            logging.info(f"Circuit ID: {circut_id}")
+            _df = self.df[self.df["circuit_id"] == circut_id]
+            logging.info(f"Circuit Flight stats for Circuit ID: {circut_id}")
+            print(_df)
+            _rs = RouteStats.from_json(_df.head(1).route_stats.values[0])
+            print(print_wave_stats(_rs.wave_stats))
 
     def _buy_flights(self):
         pending_df = self.df[self.df["status"] == Status.SEAT_CONFIG_CALCULATED.value]
