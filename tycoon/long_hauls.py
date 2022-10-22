@@ -72,6 +72,14 @@ class LongHauls(Command):
             help="Configure with the nth best seat config based on turnover (Default: 2)",
             default=2,
         )
+        sub_parser.add_argument(
+            "--analyse",
+            action="store_true",
+            help="""
+                Go back and all scheduled flights for config (Default: False)
+            """,
+            default=False,
+        )
         super().options(sub_parser)
 
     def _find_routes(self, data_file: str):
@@ -254,11 +262,13 @@ class LongHauls(Command):
 
         login(self.driver)
         try:
-            # self.routes_df.loc[self.routes_df["status"] == Status.PERFECT.value,
-            #     "status"
-            # ] = Status.SCHEDULED.value
             self._mark_pre_existing()
             self._save_data(True)
+            if self.options.analyse:
+                self.routes_df.loc[
+                    self.routes_df["status"] == Status.PERFECT.value, "status"
+                ] = Status.SCHEDULED.value
+                self._save_data(True)
             self.hub_id = find_hub_id(self.driver, self.options.hub)
             for idx in self.routes_df.index:
                 row = self.routes_df.loc[idx]

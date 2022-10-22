@@ -2,7 +2,6 @@
 # -*- encoding: utf-8 -*-
 import argparse
 import sys
-import time
 import traceback
 
 from selenium import webdriver
@@ -11,7 +10,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service as ChromiumService
 
 from tycoon.aircraft import Aircraft
-from tycoon.analyse_hub import AnalyseHub
 from tycoon.long_hauls import LongHauls
 from tycoon.circuit import Circuit
 from tycoon.seat import Seat
