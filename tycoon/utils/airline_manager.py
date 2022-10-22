@@ -103,6 +103,7 @@ def _get_flight_stats(driver) -> List[ScheduledAircraftConfig]:
     return flight_stats
 
 
+@retry(delay=5, tries=3)
 def route_stats(driver, hub: str, route: str) -> RouteStats:
     route_text = f"{hub} - {route}"
     _select_route(driver, route_text)

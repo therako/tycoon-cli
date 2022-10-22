@@ -37,7 +37,6 @@ chrome_options.add_argument("--log-level=4")
 COMMANDS = {
     "aircraft": Aircraft,
     "seat": Seat,
-    "analyse_hub": AnalyseHub,
     "long_hauls": LongHauls,
     "circuit": Circuit,
 }
@@ -64,6 +63,5 @@ if __name__ == "__main__":
     except Exception:
         traceback.print_exception(*sys.exc_info())
     finally:
-        time.sleep(5)
         driver.quit()
         print("Done")

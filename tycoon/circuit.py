@@ -69,7 +69,7 @@ class Circuit(Command):
             "--nth_best_config",
             "-n",
             type=int,
-            help="Configure with the nth best seat config based on turnover (Default: 2)",
+            help="Configure with the nth best seat config based on turnover (Default: 3)",
             default=3,
         )
 
