@@ -13,7 +13,7 @@ from tycoon.utils.airline_manager import (
 )
 from tycoon.utils.command import Command
 from tycoon.utils.data import RouteStats
-from tycoon.utils.noway import find_routes_from, find_seat_config
+from tycoon.utils.noway import find_routes_from, find_seat_config, print_wave_stats
 import pandas as pd
 from enum import Enum
 
@@ -148,8 +148,9 @@ class LongHauls(Command):
         self.routes_df.loc[idx, "status"] = Status.SEAT_CONFIG.value
         logging.info(f"Updated seat_configs for {self.options.hub} - {row.IATA}")
 
-    def _check_configuration(self, idx: int, row: pd.Series):
-        self._fetch_stats(idx, row)
+    def _configured_correct(self, idx: int, row: pd.Series, reset_status=True) -> bool:
+        if reset_status:
+            self._fetch_stats(idx, row)
         _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
         picked_config = _rs.wave_stats[
             list(_rs.wave_stats.keys())[-self.options.nth_best_config]
@@ -161,14 +162,17 @@ class LongHauls(Command):
                 or int(seat_config.group(2)) != int(picked_config.business)
                 or int(seat_config.group(3)) != int(picked_config.first)
             ):
-                self.routes_df.loc[idx, "status"] = Status.RECONFIGURE.value
-                logging.info(
-                    f"Seat config not matching {sf.seat_config} to {picked_config}"
-                )
-                return
+                if reset_status:
+                    self.routes_df.loc[idx, "status"] = Status.RECONFIGURE.value
+                    logging.info(
+                        f"Seat config not matching {sf.seat_config} to {picked_config}"
+                    )
+                return False
 
-        logging.info(f"All is perfect for {self.options.hub} - {row.IATA}")
-        self.routes_df.loc[idx, "status"] = Status.PERFECT.value
+        if reset_status:
+            self.routes_df.loc[idx, "status"] = Status.PERFECT.value
+            logging.info(f"All is perfect for {self.options.hub} - {row.IATA}")
+        return True
 
     def _reconfigure_flights(self, idx: int, row: pd.Series):
         _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
@@ -191,7 +195,6 @@ class LongHauls(Command):
         _rs.cargo = _new_rs.cargo
         _rs.scheduled_flights = _new_rs.scheduled_flights
         self.routes_df.loc[idx, "route_stats"] = _rs.to_json()
-        logging.info(f"Stats updated for route: {self.options.hub} - {row.IATA}")
 
     def _schedule_flights(self, idx: int, row: pd.Series):
         _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
@@ -241,6 +244,27 @@ class LongHauls(Command):
             self.routes_df.loc[idx, "error"] = ex
             self.routes_df.loc[idx, "status"] = Status.UNKNOWN_ERROR.value
 
+    def _check_wrong_seat_configs(self):
+        logging.info("Checking all configured flights for incorrect config...")
+        selected_df = self.routes_df[
+            self.routes_df["status"] != Status.UNKNOWN_ERROR.value
+        ]
+        for idx in selected_df.index:
+            row = selected_df.loc[idx]
+            _rs: RouteStats = RouteStats.from_json(row["route_stats"])
+            if not self._configured_correct(idx, row, False):
+                logging.info(f"Misconfig in route {self.options.hub} - {row.IATA}")
+                if len(_rs.scheduled_flights) > 0:
+                    logging.info(
+                        f"Scheduled {len(_rs.scheduled_flights)} flights with config {_rs.scheduled_flights[-1]}"
+                    )
+                else:
+                    logging.error("No flights scheduled here")
+                logging.info(f"All configs:")
+                print_wave_stats(_rs.wave_stats)
+        logging.info("Done checking")
+        logging.info("If any mistakes found run again with --analyse")
+
     def run(self):
         self.data_file = os.path.join(
             self.options.tmp_folder, f"{self.options.hub}_routes_df.csv"
@@ -256,7 +280,7 @@ class LongHauls(Command):
             Status.PRE_EXISTING.value: self._fetch_demands,
             Status.DEMAND.value: self._find_seat_configs,
             Status.SEAT_CONFIG.value: self._schedule_flights,
-            Status.SCHEDULED.value: self._check_configuration,
+            Status.SCHEDULED.value: self._configured_correct,
             Status.RECONFIGURE.value: self._reconfigure_flights,
         }
 
@@ -281,6 +305,7 @@ class LongHauls(Command):
                     self._save_data()
                     row = self.routes_df.loc[idx]
                     logging.debug(row)
+            self._check_wrong_seat_configs()
         except Exception as ex:
             raise ex
         finally:
