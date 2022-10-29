@@ -80,6 +80,14 @@ class LongHauls(Command):
             """,
             default=False,
         )
+        sub_parser.add_argument(
+            "--retry_failed",
+            action="store_true",
+            help="""
+                Retry failed routes (Default: False)
+            """,
+            default=False,
+        )
         super().options(sub_parser)
 
     def _find_routes(self, data_file: str):
@@ -286,13 +294,18 @@ class LongHauls(Command):
 
         login(self.driver)
         try:
-            self._mark_pre_existing()
-            self._save_data(True)
             if self.options.analyse:
                 self.routes_df.loc[
                     self.routes_df["status"] == Status.PERFECT.value, "status"
                 ] = Status.SCHEDULED.value
                 self._save_data(True)
+            if self.options.retry_failed:
+                self.routes_df.loc[
+                    self.routes_df["status"] == Status.UNKNOWN_ERROR.value, "status"
+                ] = Status.UNRESOLVED.value
+                self._save_data(True)
+            self._mark_pre_existing()
+            self._save_data(True)
             self.hub_id = find_hub_id(self.driver, self.options.hub)
             for idx in self.routes_df.index:
                 row = self.routes_df.loc[idx]
