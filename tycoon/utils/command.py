@@ -34,6 +34,11 @@ class Command:
             help="Disable headless and show browser",
         )
         parser.add_argument(
+            "--firefox",
+            action="store_true",
+            help="Use firefox instead of chrome",
+        )
+        parser.add_argument(
             "--tmp_folder",
             "-tmp",
             type=str,
