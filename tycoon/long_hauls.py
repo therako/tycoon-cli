@@ -297,7 +297,7 @@ class LongHauls(Command):
             if self.options.analyse:
                 self.routes_df.loc[
                     self.routes_df["status"] == Status.PERFECT.value, "status"
-                ] = Status.SCHEDULED.value
+                ] = Status.SEAT_CONFIG.value
                 self._save_data(True)
             if self.options.retry_failed:
                 self.routes_df.loc[
