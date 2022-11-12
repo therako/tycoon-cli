@@ -135,17 +135,23 @@ def _scan_seat_configs(driver, maxWave=50) -> Dict[int, WaveStat]:
 def _select_option(driver, id: str, value: Any):
     ele = Select(driver.find_element("id", id))
     for option in ele.options:
-        if str(value).lower() in option.text.lower():
+        if str(value).lower() in f"{option.text.lower()} ":
             option.click()
 
 
-def _select_aircraft(driver, aircraft_make: str, aircraft_model: str):
-    cf_aircraftmake = Select(driver.find_element("id", "cf_aircraftmake"))
+def _select_aircraft(
+    driver,
+    aircraft_make: str,
+    aircraft_model: str,
+    make_id: str = "cf_aircraftmake",
+    model_id: str = "cf_aircraftmodel",
+):
+    cf_aircraftmake = Select(driver.find_element("id", make_id))
     for option in cf_aircraftmake.options:
         if aircraft_make.lower() in option.text.lower():
             option.click()
 
-    cf_aircraftmodel = Select(driver.find_element("id", "cf_aircraftmodel"))
+    cf_aircraftmodel = Select(driver.find_element("id", model_id))
     for option in cf_aircraftmodel.options:
         if f"{aircraft_model.lower()} (" in option.text.lower():
             option.click()
@@ -238,8 +244,9 @@ def find_routes_from(
     _change_to_airport_codes(driver)
     cf_hub_src = driver.find_element("id", "cf_hub_src")
     cf_hub_src.send_keys(hub)
-    _select_option(driver, "aircraftmake", aircraft_make)
-    _select_option(driver, "aircraftmodel", aircraft_model)
+    _select_aircraft(
+        driver, aircraft_make, aircraft_model, "aircraftmake", "aircraftmodel"
+    )
     _select_option(driver, "route_duration_from_hh", min_duration)
     _select_option(driver, "route_duration_to_hh", max_duration)
     js_click(driver, driver.find_element("id", "df_search"))
