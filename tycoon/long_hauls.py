@@ -294,6 +294,7 @@ class LongHauls(Command):
 
         login(self.driver)
         try:
+            self.hub_id = find_hub_id(self.driver, self.options.hub)
             if self.options.analyse:
                 self.routes_df.loc[
                     self.routes_df["status"] == Status.PERFECT.value, "status"
@@ -306,7 +307,6 @@ class LongHauls(Command):
                 self._save_data(True)
             self._mark_pre_existing()
             self._save_data(True)
-            self.hub_id = find_hub_id(self.driver, self.options.hub)
             for idx in self.routes_df.index:
                 row = self.routes_df.loc[idx]
                 logging.debug(row)
