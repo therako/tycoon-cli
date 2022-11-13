@@ -171,8 +171,7 @@ def find_seat_config(
     )
     driver.get("https://destinations.noway.info/en/seatconfigurator/index.html")
     _clear_previous_configs(driver)
-    _select_option(driver, "cf_aircraftmake", aircraft_make)
-    _select_option(driver, "cf_aircraftmodel", aircraft_model)
+    _select_aircraft(driver, aircraft_make, aircraft_model)
 
     _change_to_airport_codes(driver)
     _fillin_route_stats(driver, source, destination, route_stats)

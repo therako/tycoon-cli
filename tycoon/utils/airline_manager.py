@@ -259,6 +259,7 @@ def buy_route(driver: WebDriver, hub: str, destination: str, hub_id: int):
 
 def _assigned_flight_count(driver, hub, destination):
     _select_route(driver, f"{hub} - {destination}")
+    time.sleep(2)
     return int(
         driver.find_element(
             By.XPATH, '//div[@id="showLine"]/div[3]/ul[1]/li[2]/strong'
