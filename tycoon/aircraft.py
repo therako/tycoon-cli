@@ -10,6 +10,9 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select
 
 
+BATCH_SIZE = 90
+
+
 class Aircraft(Command):
     @classmethod
     def options(cls, parser: argparse.ArgumentParser):
@@ -19,8 +22,8 @@ class Aircraft(Command):
             "--number",
             "-n",
             type=int,
-            help="No. of flights to buy (Default: 30)",
-            default=30,
+            help=f"No. of flights to buy (Default: {BATCH_SIZE})",
+            default=BATCH_SIZE,
         )
 
     def buy_aircraft(self, number: int):
@@ -91,9 +94,9 @@ class Aircraft(Command):
 
     def run(self):
         login(self.driver)
-        if self.options.number >= 30:
-            for i in range(0, int(self.options.number / 30)):
-                logging.info(f"Buying in batch of 30, batch {i}...")
-                self.buy_aircraft(30)
+        if self.options.number >= BATCH_SIZE:
+            for i in range(0, int(self.options.number / BATCH_SIZE)):
+                logging.info(f"Buying in batch of {BATCH_SIZE}, batch {i}...")
+                self.buy_aircraft(BATCH_SIZE)
         else:
             self.buy_aircraft(self.options.number)
