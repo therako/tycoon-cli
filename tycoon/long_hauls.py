@@ -9,6 +9,7 @@ from tycoon.utils.airline_manager import (
     get_all_routes,
     login,
     reconfigure_flight_seats,
+    remove_wrong_flights,
     route_stats,
 )
 from tycoon.utils.command import Command
@@ -43,9 +44,9 @@ class LongHauls(Command):
             "-min",
             type=int,
             help="""
-                Minimum flight duration in hours (Default: 20 hours)
+                Minimum flight duration in hours (Default: 18 hours)
             """,
-            default=20,
+            default=18,
         )
         sub_parser.add_argument(
             "--max_duration",
@@ -163,6 +164,20 @@ class LongHauls(Command):
         picked_config = _rs.wave_stats[
             list(_rs.wave_stats.keys())[-self.options.nth_best_config]
         ]
+        if len(_rs.scheduled_flights) != picked_config.no:
+            logging.error(
+                f"No. of flight configured not matching, config: {len(_rs.scheduled_flights)}, required: {picked_config.no}"
+            )
+            remove_wrong_flights(
+                self.driver,
+                self.hub_id,
+                self.options.hub,
+                row.IATA,
+                picked_config,
+                self.options.aircraft_model,
+            )
+            return False
+
         for sf in _rs.scheduled_flights:
             seat_config = re.search(AIRCRAFT_SEAT_REGX, sf.seat_config)
             if (
@@ -172,7 +187,7 @@ class LongHauls(Command):
             ):
                 if reset_status:
                     self.routes_df.loc[idx, "status"] = Status.RECONFIGURE.value
-                    logging.info(
+                    logging.error(
                         f"Seat config not matching {sf.seat_config} to {picked_config}"
                     )
                 return False
@@ -209,7 +224,7 @@ class LongHauls(Command):
         choosen_config = _rs.wave_stats[
             list(_rs.wave_stats.keys())[-self.options.nth_best_config]
         ]
-        if len(_rs.scheduled_flights) == choosen_config.no:
+        if len(_rs.scheduled_flights) >= choosen_config.no:
             if (
                 len(set([x.model for x in _rs.scheduled_flights])) != 1
                 or set([x.model for x in _rs.scheduled_flights]).pop().lower()

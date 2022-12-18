@@ -271,19 +271,24 @@ def _searchable_aircraft_model(raw: str):
     return raw.replace("Ił-", "")
 
 
-def _select_flight(driver: WebDriver, hub_id: int, aircraft_model: str):
+def _select_flight(
+    driver: WebDriver,
+    hub_id: int,
+    aircraft_model: str,
+    sort_by="utilizationPercentageAsc",
+):
     time.sleep(1)
     js_click(driver, driver.find_element(By.XPATH, f"//span[@data-hubid='{hub_id}']"))
-    time.sleep(2)
+    time.sleep(1)
+    js_click(driver, driver.find_element(By.XPATH, f"//span[@data-hubid='{hub_id}']"))
+    time.sleep(1)
     el = driver.find_element("id", "aircraftNameFilter")
     el.clear()
     el.send_keys(_searchable_aircraft_model(aircraft_model))
-    time.sleep(2)
+    time.sleep(1)
     js_click(
         driver,
-        driver.find_element(
-            By.CSS_SELECTOR, "input[type='radio'][value='utilizationPercentageAsc']"
-        ),
+        driver.find_element(By.CSS_SELECTOR, f"input[type='radio'][value='{sort_by}']"),
     )
 
 
@@ -359,6 +364,52 @@ def assign_flights(
     for i in range(0, best_config.no - assigned_aircrafts):
         logging.info(f"Scheduling flight {i+1}...")
         _schedule_a_flight(driver, hub_id, hub, destination, aircraft_model)
+
+
+@retry(delay=2, tries=5)
+def remove_wrong_flights(
+    driver: WebDriver,
+    hub_id: int,
+    hub: str,
+    destination: str,
+    config: RouteStat,
+    aircraft_model: str,
+):
+    name_prefix = f"{hub}-{destination}"
+    while True:
+        assigned_aircrafts = _assigned_flight_count(driver, hub, destination)
+        if assigned_aircrafts <= config.no:
+            break
+
+        logging.error(
+            f"The route has {assigned_aircrafts-config.no} more flights than required"
+        )
+        driver.get("http://tycoon.airlines-manager.com/network/planning")
+        _select_flight(driver, hub_id, name_prefix, sort_by="utilizationPercentageDesc")
+        time.sleep(1)
+        from IPython import embed
+
+        embed()
+        _check_assigned_flight(driver, hub, aircraft_model, name_prefix)
+        js_click(driver, driver.find_element("id", "tableButtonClearSchedule"))
+        time.sleep(1)
+        js_click(driver, driver.find_element("id", "planningSubmit"))
+        time.sleep(1)
+
+
+def _check_assigned_flight(
+    driver: WebDriver, hub: str, aircraft_model: str, name_prefix: str
+):
+    try:
+        name = driver.find_element(By.XPATH, "//*[@class='aircraftsBox']/div[1]/div[1]")
+        if name_prefix in name.text:
+            return True
+
+        raise Exception(
+            f"Wrong flight, found flight {name.text} instead of {name_prefix}"
+        )
+    except NoSuchElementException:
+        raise Exception(f"No flights in HUB {hub} of name {name_prefix}")
 
 
 def buy_aircraft(
