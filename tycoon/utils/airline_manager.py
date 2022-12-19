@@ -313,8 +313,9 @@ def _select_route_for_aircraft(driver: WebDriver, hub: str, destination: str):
     )
 
 
+@retry(delay=2, tries=5)
 def _schedule_a_flight(driver: WebDriver, hub_id, hub, destination, aircraft_model):
-    driver.get("http://tycoon.airlines-manager.com/network/planning")
+    logging.info("Try scheduling a flight...")
     _select_flight(driver, hub_id, aircraft_model)
     _check_for_free_aircraft(driver, hub, aircraft_model)
     _select_route_for_aircraft(driver, hub, destination)
@@ -332,9 +333,9 @@ def _schedule_a_flight(driver: WebDriver, hub_id, hub, destination, aircraft_mod
         ),
     )
     js_click(driver, driver.find_element("id", "planningSubmit"))
+    logging.info("Scheduling a flight... success")
 
 
-@retry(delay=5, tries=5)
 def assign_flights(
     driver: WebDriver,
     hub_id: int,
@@ -363,10 +364,10 @@ def assign_flights(
     )
     for i in range(0, best_config.no - assigned_aircrafts):
         logging.info(f"Scheduling flight {i+1}...")
+        driver.get("http://tycoon.airlines-manager.com/network/planning")
         _schedule_a_flight(driver, hub_id, hub, destination, aircraft_model)
 
 
-@retry(delay=2, tries=5)
 def remove_wrong_flights(
     driver: WebDriver,
     hub_id: int,
@@ -385,16 +386,26 @@ def remove_wrong_flights(
             f"The route has {assigned_aircrafts-config.no} more flights than required"
         )
         driver.get("http://tycoon.airlines-manager.com/network/planning")
-        _select_flight(driver, hub_id, name_prefix, sort_by="utilizationPercentageDesc")
-        time.sleep(1)
-        from IPython import embed
+        _remove_a_flight(driver, hub_id, name_prefix, hub, aircraft_model)
 
-        embed()
-        _check_assigned_flight(driver, hub, aircraft_model, name_prefix)
-        js_click(driver, driver.find_element("id", "tableButtonClearSchedule"))
-        time.sleep(1)
-        js_click(driver, driver.find_element("id", "planningSubmit"))
-        time.sleep(1)
+
+@retry(delay=2, tries=5)
+def _remove_a_flight(
+    driver: WebDriver,
+    hub_id: int,
+    name_prefix: str,
+    hub: str,
+    aircraft_model: str,
+):
+    logging.info("Try removing a flight...")
+    _select_flight(driver, hub_id, name_prefix, sort_by="utilizationPercentageDesc")
+    time.sleep(1)
+    _check_assigned_flight(driver, hub, aircraft_model, name_prefix)
+    js_click(driver, driver.find_element("id", "tableButtonClearSchedule"))
+    time.sleep(1)
+    js_click(driver, driver.find_element("id", "planningSubmit"))
+    time.sleep(1)
+    logging.info("Removing a flight... success")
 
 
 def _check_assigned_flight(
