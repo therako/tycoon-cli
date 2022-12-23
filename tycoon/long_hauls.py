@@ -75,11 +75,12 @@ class LongHauls(Command):
         )
         sub_parser.add_argument(
             "--analyse",
-            action="store_true",
+            type=str,
             help="""
-                Go back and all scheduled flights for config (Default: False)
+                Check scheduled flight configs for all or few destinations (Default: None)
+                pass all to check all destinations in the hub
             """,
-            default=False,
+            default=None,
         )
         sub_parser.add_argument(
             "--retry_failed",
@@ -176,7 +177,6 @@ class LongHauls(Command):
                 picked_config,
                 self.options.aircraft_model,
             )
-            return False
 
         for sf in _rs.scheduled_flights:
             seat_config = re.search(AIRCRAFT_SEAT_REGX, sf.seat_config)
@@ -267,27 +267,6 @@ class LongHauls(Command):
             self.routes_df.loc[idx, "error"] = ex
             self.routes_df.loc[idx, "status"] = Status.UNKNOWN_ERROR.value
 
-    def _check_wrong_seat_configs(self):
-        logging.info("Checking all configured flights for incorrect config...")
-        selected_df = self.routes_df[
-            self.routes_df["status"] != Status.UNKNOWN_ERROR.value
-        ]
-        for idx in selected_df.index:
-            row = selected_df.loc[idx]
-            _rs: RouteStats = RouteStats.from_json(row["route_stats"])
-            if not self._configured_correct(idx, row, False):
-                logging.info(f"Misconfig in route {self.options.hub} - {row.IATA}")
-                if len(_rs.scheduled_flights) > 0:
-                    logging.info(
-                        f"Scheduled {len(_rs.scheduled_flights)} flights with config {_rs.scheduled_flights[-1]}"
-                    )
-                else:
-                    logging.error("No flights scheduled here")
-                logging.info(f"All configs:")
-                print_wave_stats(_rs.wave_stats)
-        logging.info("Done checking")
-        logging.info("If any mistakes found run again with --analyse")
-
     def run(self):
         self.data_file = os.path.join(
             self.options.tmp_folder, f"{self.options.hub}_routes_df.csv"
@@ -310,9 +289,14 @@ class LongHauls(Command):
         login(self.driver)
         try:
             self.hub_id = find_hub_id(self.driver, self.options.hub)
-            if self.options.analyse:
+            if self.options.analyse and self.options.analyse == "all":
                 self.routes_df.loc[
                     self.routes_df["status"] == Status.PERFECT.value, "status"
+                ] = Status.SEAT_CONFIG.value
+            elif self.options.analyse != None:
+                self.routes_df.loc[
+                    self.routes_df["IATA"].isin(self.options.analyse.split(",")).index,
+                    "status",
                 ] = Status.SEAT_CONFIG.value
                 self._save_data(True)
             if self.options.retry_failed:
@@ -333,7 +317,7 @@ class LongHauls(Command):
                     self._save_data()
                     row = self.routes_df.loc[idx]
                     logging.debug(row)
-            self._check_wrong_seat_configs()
+            logging.info("Done, If any mistakes found run again with --analyse")
         except Exception as ex:
             raise ex
         finally:

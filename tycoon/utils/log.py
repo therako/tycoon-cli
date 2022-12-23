@@ -7,8 +7,9 @@ def setup(debug_mode=False):
         debug_mode (bool): a boolean to enable verbose logs
     """
     logFormatter = logging.Formatter(
-        "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s"
+        "%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s"
     )
+
     rootLogger = logging.getLogger()
     rootLogger.setLevel(logging.INFO)
 
