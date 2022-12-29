@@ -165,9 +165,9 @@ class LongHauls(Command):
         picked_config = _rs.wave_stats[
             list(_rs.wave_stats.keys())[-self.options.nth_best_config]
         ]
-        if len(_rs.scheduled_flights) != picked_config.no:
+        if len(_rs.scheduled_flights) > picked_config.no:
             logging.error(
-                f"No. of flight configured not matching, config: {len(_rs.scheduled_flights)}, required: {picked_config.no}"
+                f"More flights configured, current: {len(_rs.scheduled_flights)}, required: {picked_config.no}"
             )
             remove_wrong_flights(
                 self.driver,
@@ -177,6 +177,8 @@ class LongHauls(Command):
                 picked_config,
                 self.options.aircraft_model,
             )
+        elif len(_rs.scheduled_flights) < picked_config.no:
+            self._schedule_flights(idx, row)
 
         for sf in _rs.scheduled_flights:
             seat_config = re.search(AIRCRAFT_SEAT_REGX, sf.seat_config)
@@ -289,13 +291,13 @@ class LongHauls(Command):
         login(self.driver)
         try:
             self.hub_id = find_hub_id(self.driver, self.options.hub)
-            if self.options.analyse and self.options.analyse == "all":
+            if self.options.analyse and self.options.analyse.lower() == "all":
                 self.routes_df.loc[
                     self.routes_df["status"] == Status.PERFECT.value, "status"
                 ] = Status.SEAT_CONFIG.value
             elif self.options.analyse != None:
                 self.routes_df.loc[
-                    self.routes_df["IATA"].isin(self.options.analyse.split(",")).index,
+                    self.routes_df["IATA"].isin(self.options.analyse.split(",")),
                     "status",
                 ] = Status.SEAT_CONFIG.value
                 self._save_data(True)
