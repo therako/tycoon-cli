@@ -89,7 +89,7 @@ def _select_wave(driver, wave: int):
         wave_selector.select_by_visible_text(str(wave))
         return wave
     except NoSuchElementException:
-        logging.info(f"No config for wave: {wave}, mush have reached max waves")
+        logging.debug(f"No config for wave: {wave}, mush have reached max waves")
 
 
 @retry(NoSuchElementException, delay=5, tries=6, logger=None)

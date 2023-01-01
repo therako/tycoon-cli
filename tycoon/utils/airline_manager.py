@@ -158,7 +158,7 @@ def get_all_routes(driver, hub: str) -> List[str]:
     for route_element in route_elements:
         destinations.append(_extract_destination(hub, route_element))
 
-    logging.info(f"Found {len(destinations)} destinations at hub {hub}")
+    logging.debug(f"Found {len(destinations)} destinations at hub {hub}")
     return destinations
 
 
@@ -190,7 +190,7 @@ def reconfigure_flight_seats(
         )
 
     for i, aircraft_link in enumerate(aircraft_links):
-        logging.info(f"Reconfiguring seat on Aircraft {i+1}")
+        logging.debug(f"Reconfiguring seat on Aircraft {i+1}")
         driver.get(aircraft_link + "/reconfigure")
         _clear_all_and_enter(
             [
@@ -226,7 +226,7 @@ def reconfigure_flight_seats(
         )
 
     for i, aircraft_link in enumerate(aircraft_links):
-        logging.info(f"Reconfiguring seat on Aircraft {i+1}")
+        logging.debug(f"Reconfiguring seat on Aircraft {i+1}")
         driver.get(aircraft_link + "/reconfigure")
         _clear_all_and_enter(
             [
@@ -314,7 +314,7 @@ def _select_route_for_aircraft(driver: WebDriver, hub: str, destination: str):
 
 @retry(delay=2, tries=5)
 def _schedule_a_flight(driver: WebDriver, hub_id, hub, destination, aircraft_model):
-    logging.info("Try scheduling a flight...")
+    logging.debug("Try scheduling a flight...")
     _select_flight(driver, hub_id, aircraft_model)
     _check_for_free_aircraft(driver, hub, aircraft_model)
     _select_route_for_aircraft(driver, hub, destination)
@@ -332,7 +332,7 @@ def _schedule_a_flight(driver: WebDriver, hub_id, hub, destination, aircraft_mod
         ),
     )
     js_click(driver, driver.find_element("id", "planningSubmit"))
-    logging.info("Scheduling a flight... success")
+    logging.debug("Scheduling a flight... success")
 
 
 def assign_flights(
@@ -347,7 +347,7 @@ def assign_flights(
     best_config = route_stats.wave_stats[
         list(route_stats.wave_stats.keys())[-nth_best_config]
     ]
-    logging.info(
+    logging.debug(
         f"Configuring route {hub} - {destination} with best config:\n\t{best_config}"
     )
     assigned_aircrafts = _assigned_flight_count(driver, hub, destination)
@@ -358,11 +358,11 @@ def assign_flights(
             "The route has already scheduled flights that are outside of this script."
         )
 
-    logging.info(
+    logging.debug(
         f"Excluding already configured {assigned_aircrafts}, scheduing {best_config.no - assigned_aircrafts} flights"
     )
     for i in range(0, best_config.no - assigned_aircrafts):
-        logging.info(f"Scheduling flight {i+1}...")
+        logging.debug(f"Scheduling flight {i+1}...")
         driver.get("http://tycoon.airlines-manager.com/network/planning")
         _schedule_a_flight(driver, hub_id, hub, destination, aircraft_model)
 
@@ -396,7 +396,7 @@ def _remove_a_flight(
     hub: str,
     aircraft_model: str,
 ):
-    logging.info("Try removing a flight...")
+    logging.debug("Try removing a flight...")
     _select_flight(driver, hub_id, name_prefix, sort_by="utilizationPercentageDesc")
     time.sleep(1)
     _check_assigned_flight(driver, hub, aircraft_model, name_prefix)
@@ -404,7 +404,7 @@ def _remove_a_flight(
     time.sleep(1)
     js_click(driver, driver.find_element("id", "planningSubmit"))
     time.sleep(1)
-    logging.info("Removing a flight... success")
+    logging.debug("Removing a flight... success")
 
 
 def _check_assigned_flight(

@@ -86,7 +86,7 @@ class Seat(Command):
             pass
 
     def fillin_route_stats(self, source: str, destination: str):
-        logging.info(f"Finding route stats from {source} to {destination}")
+        logging.debug(f"Finding route stats from {source} to {destination}")
         cf_hub_src = self.driver.find_element("id", "cf_hub_src")
         cf_hub_src.send_keys(source)
         cf_hub_dst = self.driver.find_element("id", "cf_hub_dst")
