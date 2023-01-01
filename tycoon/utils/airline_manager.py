@@ -84,7 +84,6 @@ def _get_flight_stats(driver) -> List[ScheduledAircraftConfig]:
     )
     flight_stats = []
     for flight in flights_list:
-        flight = flights_list[0]
         flight_stats.append(
             ScheduledAircraftConfig(
                 model=flight.find_element(By.XPATH, "div[1]/span")
