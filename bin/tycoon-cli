@@ -6,12 +6,14 @@ import traceback
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.chrome.service import Service as ChromiumService
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from webdriver_manager.chrome import ChromeDriverManager
+
 
 from tycoon.aircraft import Aircraft
-from tycoon.long_hauls import LongHauls
 from tycoon.circuit import Circuit
+from tycoon.long_hauls import LongHauls
 from tycoon.seat import Seat
 from tycoon.utils import log
 
@@ -41,14 +43,14 @@ if __name__ == "__main__":
             browser_options.add_argument("--headless")
         driver = webdriver.Firefox(options=browser_options)
     else:
-        # manager = ChromeDriverManager(version="107.0.5304.62").install()
+        manager = ChromeDriverManager(version="110.0.5481.77").install()
         browser_options = ChromeOptions()
         browser_options.add_argument("--window-size=1920x1080")
         browser_options.add_argument("--log-level=4")
         if not options.no_headless:
             browser_options.add_argument("--headless")
         driver = webdriver.Chrome(
-            # service=ChromiumService(manager),
+            service=ChromiumService(manager),
             options=browser_options,
         )
 
