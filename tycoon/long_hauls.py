@@ -222,6 +222,15 @@ class LongHauls(Command):
         self.routes_df.loc[idx, "route_stats"] = _rs.to_json()
 
     def _schedule_flights(self, idx: int, row: pd.Series):
+        if pd.isnull(self.routes_df.loc[idx, "route_stats"]) and not pd.isnull(
+            self.routes_df.loc[idx].error
+        ):
+            logging.error(
+                f"Error scheduling flights for {self.routes_df.loc[idx].IATA}, skipping"
+            )
+            self.routes_df.loc[idx, "status"] = Status.UNKNOWN_ERROR.value
+            return
+
         _rs = RouteStats.from_json(self.routes_df.loc[idx, "route_stats"])
         choosen_config = _rs.wave_stats[
             list(_rs.wave_stats.keys())[-self.options.nth_best_config]
