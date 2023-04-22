@@ -43,7 +43,7 @@ if __name__ == "__main__":
             browser_options.add_argument("--headless")
         driver = webdriver.Firefox(options=browser_options)
     else:
-        manager = ChromeDriverManager(version="110.0.5481.77").install()
+        manager = ChromeDriverManager(version="112.0.5615.28").install()
         browser_options = ChromeOptions()
         browser_options.add_argument("--window-size=1920x1080")
         browser_options.add_argument("--log-level=4")
