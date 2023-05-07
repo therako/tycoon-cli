@@ -173,6 +173,7 @@ def _clear_all_and_enter(inputs):
         time.sleep(2)
 
 
+@retry(delay=2, tries=5)
 def reconfigure_flight_seats(
     driver: WebDriver,
     hub: str,
@@ -209,6 +210,7 @@ def reconfigure_flight_seats(
         ).submit()
 
 
+@retry(delay=2, tries=5)
 def reconfigure_flight_seats(
     driver: WebDriver,
     hub: str,
@@ -228,6 +230,7 @@ def reconfigure_flight_seats(
     for i, aircraft_link in enumerate(aircraft_links):
         logging.debug(f"Reconfiguring seat on Aircraft {i+1}")
         driver.get(aircraft_link + "/reconfigure")
+        time.sleep(1)
         _clear_all_and_enter(
             [
                 (driver.find_element("id", "ecoManualInput"), seat_config.economy),
@@ -243,6 +246,7 @@ def reconfigure_flight_seats(
         driver.find_element(
             By.XPATH, '//input[@value="Confirm the reconfiguration"]'
         ).submit()
+        time.sleep(1)
 
 
 def buy_route(driver: WebDriver, hub: str, destination: str, hub_id: int):
